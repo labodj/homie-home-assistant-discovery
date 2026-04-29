@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use or reference homie-home-assistant-discovery, please cite it using the metadata below."
+title: "homie-home-assistant-discovery"
+type: software
+authors:
+  - family-names: "Labardi"
+    given-names: "Jacopo"
+repository-code: "https://github.com/labodj/homie-home-assistant-discovery"
+url: "https://github.com/labodj/homie-home-assistant-discovery"
+license: "Apache-2.0"
+abstract: "Standalone Homie MQTT to Home Assistant MQTT discovery bridge core."
+keywords:
+  - mqtt
+  - homie
+  - home-assistant
+  - discovery
+  - smart-home

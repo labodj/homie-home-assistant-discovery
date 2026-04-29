@@ -1,0 +1,13 @@
+Homie Home Assistant Discovery Attribution Notice
+
+This repository is an original component by Jacopo Labardi.
+
+Some design patterns and implementation techniques are adapted from the
+Home Assistant discovery code originally developed in node-red-contrib-lsh-logic:
+https://github.com/labodj/node-red-contrib-lsh-logic
+
+The Homie convention is maintained by the Homie IoT project:
+https://github.com/homieiot/convention
+
+This NOTICE file is provided for attribution purposes only and does not modify
+the terms of the Apache License, Version 2.0.

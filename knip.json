@@ -1,0 +1,12 @@
+{
+  "entry": [
+    "src/index.ts",
+    "src/mqtt.ts",
+    "src/mqtt-adapter.ts",
+    "src/subscriptions.ts",
+    "src/cli.ts"
+  ],
+  "project": ["src/**/*.ts"],
+  "ignoreDependencies": ["mqtt"],
+  "ignore": ["dist/**", "coverage/**"]
+}

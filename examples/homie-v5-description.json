@@ -1,0 +1,32 @@
+{
+  "homie": "5.0",
+  "version": 1,
+  "name": "Kitchen Controller",
+  "type": "example.controller",
+  "nodes": {
+    "relay": {
+      "name": "Relay",
+      "type": "actuator",
+      "properties": {
+        "state": {
+          "name": "State",
+          "datatype": "boolean",
+          "settable": true,
+          "retained": true
+        }
+      }
+    },
+    "temperature": {
+      "name": "Temperature",
+      "type": "sensor",
+      "properties": {
+        "value": {
+          "name": "Temperature",
+          "datatype": "float",
+          "unit": "°C",
+          "retained": true
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "name": "homie-home-assistant-discovery",
+  "version": "0.2.0",
+  "description": "Standalone Homie MQTT to Home Assistant MQTT discovery bridge core.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./mqtt": {
+      "types": "./dist/mqtt.d.ts",
+      "default": "./dist/mqtt.js"
+    }
+  },
+  "bin": {
+    "homie-home-assistant-discovery": "dist/cli.js",
+    "homie-ha-discovery": "dist/cli.js"
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "sync:version": "node scripts/sync-version.mjs --write",
+    "sync:version:check": "node scripts/sync-version.mjs --check",
+    "build": "npm run sync:version:check && npm run clean && tsc -p tsconfig.prod.json",
+    "typecheck": "npm run sync:version:check && tsc -p tsconfig.typecheck.json",
+    "lint": "npm run sync:version:check && eslint src --max-warnings=0 --cache --cache-location ./.cache/eslint",
+    "lint:md": "node scripts/lint-markdown.mjs",
+    "format": "prettier --write \"src/**/*.ts\" \"scripts/**/*.mjs\" \"examples/**/*.json\" \"docs/**/*.md\" README.md CITATION.cff package.json jest.config.js eslint.config.mjs knip.json tsconfig*.json .prettierrc.json \".github/**/*.{yml,yaml}\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"scripts/**/*.mjs\" \"examples/**/*.json\" \"docs/**/*.md\" README.md CITATION.cff package.json jest.config.js eslint.config.mjs knip.json tsconfig*.json .prettierrc.json \".github/**/*.{yml,yaml}\"",
+    "knip": "knip --production --strict",
+    "audit:prod": "npm audit --omit=dev",
+    "validate:package-doc-links": "node scripts/validate-package-doc-links.mjs",
+    "verify:package": "node scripts/verify-package.mjs",
+    "verify:package-contents": "node scripts/verify-package-contents.mjs",
+    "check": "npm run sync:version:check && npm run typecheck && npm run lint && npm run lint:md && npm run format:check && npm run knip && npm run build && npm run validate:package-doc-links && npm run verify:package-contents && npm run verify:package && npm run test:cov && npm run audit:prod",
+    "test": "npm run sync:version:check && jest --no-cache --detectOpenHandles",
+    "test:cov": "npm run sync:version:check && jest --coverage --no-cache --detectOpenHandles",
+    "test:watch": "jest --watch",
+    "prepublishOnly": "npm run check"
+  },
+  "files": [
+    "dist/",
+    "docs/",
+    "examples/",
+    "LICENSE",
+    "NOTICE",
+    "README.md",
+    "CITATION.cff"
+  ],
+  "keywords": [
+    "mqtt",
+    "homie",
+    "home-assistant",
+    "homeassistant",
+    "discovery",
+    "smart-home",
+    "iot"
+  ],
+  "author": {
+    "name": "Jacopo Labardi",
+    "email": "2527836+labodj@users.noreply.github.com"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/labodj/homie-home-assistant-discovery.git"
+  },
+  "bugs": {
+    "url": "https://github.com/labodj/homie-home-assistant-discovery/issues"
+  },
+  "homepage": "https://github.com/labodj/homie-home-assistant-discovery#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "mqtt": "^5.15.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.6.0",
+    "aedes": "^0.51.3",
+    "eslint": "^10.2.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jest": "^29.15.2",
+    "globals": "^17.5.0",
+    "jest": "^30.3.0",
+    "knip": "^6.7.0",
+    "prettier": "^3.8.3",
+    "ts-jest": "^29.4.9",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.1"
+  }
+}
