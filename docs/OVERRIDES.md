@@ -68,23 +68,26 @@ This gives both simple defaults and absolute per-property control.
 String fields in `deviceDefaults`, device overrides and property overrides may
 use templates. Unknown tokens are left unchanged.
 
-| Token              | Meaning                                       |
-| ------------------ | --------------------------------------------- |
-| `{baseTopic}`      | Full Homie device base topic.                 |
-| `{deviceId}`       | Homie device id.                              |
-| `{majorVersion}`   | Homie major version when known.               |
-| `{root}`           | Homie root before the version/device id.      |
-| `{rootSlug}`       | Object-id-safe root.                          |
-| `{nodeId}`         | Homie node id.                                |
-| `{propertyId}`     | Homie property id.                            |
-| `{path}`           | `nodeId/propertyId`.                          |
-| `{nodeName}`       | Homie node display name when known.           |
-| `{nodeType}`       | Homie node type when known.                   |
-| `{propertyName}`   | Homie property display name when known.       |
-| `{deviceObjectId}` | Generated Home Assistant device object id.    |
-| `{platform}`       | Generated Home Assistant MQTT platform.       |
-| `{entityObjectId}` | Generated Home Assistant entity object id.    |
-| `{objectId}`       | Alias of `{entityObjectId}` for entity rules. |
+| Token               | Meaning                                       |
+| ------------------- | --------------------------------------------- |
+| `{baseTopic}`       | Full Homie device base topic.                 |
+| `{deviceId}`        | Homie device id.                              |
+| `{deviceIdUpper}`   | Homie device id converted to upper case.      |
+| `{majorVersion}`    | Homie major version when known.               |
+| `{root}`            | Homie root before the version/device id.      |
+| `{rootSlug}`        | Object-id-safe root.                          |
+| `{nodeId}`          | Homie node id.                                |
+| `{nodeIdUpper}`     | Homie node id converted to upper case.        |
+| `{propertyId}`      | Homie property id.                            |
+| `{propertyIdUpper}` | Homie property id converted to upper case.    |
+| `{path}`            | `nodeId/propertyId`.                          |
+| `{nodeName}`        | Homie node display name when known.           |
+| `{nodeType}`        | Homie node type when known.                   |
+| `{propertyName}`    | Homie property display name when known.       |
+| `{deviceObjectId}`  | Generated Home Assistant device object id.    |
+| `{platform}`        | Generated Home Assistant MQTT platform.       |
+| `{entityObjectId}`  | Generated Home Assistant entity object id.    |
+| `{objectId}`        | Alias of `{entityObjectId}` for entity rules. |
 
 For example:
 
@@ -102,6 +105,14 @@ For example:
     "objectId": "lsh_{deviceId}_{nodeId}",
     "defaultEntityId": "{platform}.{objectId}"
   },
+  "rules": [
+    {
+      "match": {
+        "nodeId": "diagnostics"
+      },
+      "name": "{deviceIdUpper} {propertyName}"
+    }
+  ],
   "devices": {
     "c1": {
       "nodeNames": {

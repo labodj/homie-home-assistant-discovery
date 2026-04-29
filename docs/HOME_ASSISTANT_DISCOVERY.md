@@ -367,10 +367,11 @@ exposed as diagnostic entities without hard-coding any extension name. This
 applies to implementation or extension attributes such as `$fw/version`,
 `$stats/uptime` and `$implementation/ota/enabled`.
 
-Core operational attributes are intentionally not exposed as diagnostics:
-`$state` drives availability, `$description` drives discovery, `$log` is a
-non-retained logging stream and `$alert` is user-facing alert behavior rather
-than stable entity metadata.
+Core operational and collection attributes are intentionally not exposed as
+observed diagnostics: `$state` drives availability, `$description` drives
+discovery, `$log` is a non-retained logging stream, `$alert` is user-facing
+alert behavior and the bare `$stats` topic is only an index for concrete
+`$stats/*` values.
 
 The mapper derives conservative payload metadata:
 
@@ -388,13 +389,15 @@ seconds/duration metadata, and MQTT dropped counters get
 `state_class: "total_increasing"`. Unknown attributes still become plain
 diagnostic entities and can be refined with overrides.
 
-Entity ids are built from the attribute path under the synthetic
-`diagnostics` node. For example, `$implementation/ota/enabled` becomes
-`diagnostics/implementation-ota-enabled` for override matching and an object id
-ending in `implementation_ota_enabled`.
+Override matching uses the attribute path under the synthetic `diagnostics`
+node. For example, `$implementation/ota/enabled` becomes
+`diagnostics/implementation-ota-enabled` for exact property overrides. Known
+diagnostics use stable, human-readable object ids such as `ota_enabled`,
+`firmware_version`, `mqtt_inbound_dropped` and `homie_extensions`; unknown
+attributes fall back to an object id derived from their path.
 
 The v5 `$description` payload also contributes derived diagnostic entities for
-the description version and declared extension list.
+the Homie convention version, description version and declared extension list.
 
 Homie extension names do not provide a complete machine-readable schema by
 themselves. Use overrides to set exact units, icons, device classes, state

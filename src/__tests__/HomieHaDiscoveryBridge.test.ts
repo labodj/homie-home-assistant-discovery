@@ -464,7 +464,7 @@ describe("HomieHaDiscoveryBridge", () => {
           sw_version: "1.2.3",
         }),
         components: expect.objectContaining({
-          acme_kitchen_implementation_ota_enabled: expect.objectContaining({
+          acme_kitchen_ota_enabled: expect.objectContaining({
             platform: "binary_sensor",
             entity_category: "diagnostic",
             state_topic: "homie/5/kitchen/$implementation/ota/enabled",
@@ -478,18 +478,18 @@ describe("HomieHaDiscoveryBridge", () => {
             value_template: "{{ 'configured' }}",
             json_attributes_topic: "homie/5/kitchen/$implementation/config",
           }),
-          acme_kitchen_stats_mqtt_inbound_dropped: expect.objectContaining({
+          acme_kitchen_mqtt_inbound_dropped: expect.objectContaining({
             platform: "sensor",
             state_topic: "homie/5/kitchen/$stats/mqttinbounddropped",
             state_class: "total_increasing",
           }),
-          acme_kitchen_description_version: expect.objectContaining({
+          acme_kitchen_homie_description_version: expect.objectContaining({
             platform: "sensor",
             entity_category: "diagnostic",
             state_topic: "homie/5/kitchen/$description",
             value_template: "{{ value_json.version }}",
           }),
-          acme_kitchen_description_extensions: expect.objectContaining({
+          acme_kitchen_homie_extensions: expect.objectContaining({
             platform: "sensor",
             entity_category: "diagnostic",
             state_topic: "homie/5/kitchen/$description",
@@ -508,7 +508,7 @@ describe("HomieHaDiscoveryBridge", () => {
             objectId: "acme_kitchen",
             properties: {
               "diagnostics/stats-mqtt-inbound-dropped": {
-                name: "MQTT Dropped Messages",
+                name: "{deviceIdUpper} MQTT Dropped Messages",
                 objectId: "acme_kitchen_mqtt_dropped",
                 icon: "mdi:counter",
                 unit: "messages",
@@ -550,7 +550,7 @@ describe("HomieHaDiscoveryBridge", () => {
         components: expect.objectContaining({
           acme_kitchen_mqtt_dropped: expect.objectContaining({
             platform: "sensor",
-            name: "MQTT Dropped Messages",
+            name: "KITCHEN MQTT Dropped Messages",
             icon: "mdi:counter",
             unit_of_measurement: "messages",
             state_class: "total_increasing",
@@ -594,7 +594,7 @@ describe("HomieHaDiscoveryBridge", () => {
     expect(payload).toEqual(
       expect.objectContaining({
         components: expect.objectContaining({
-          homie_homie_5_kitchen_implementation_ota_enabled: expect.objectContaining({
+          homie_homie_5_kitchen_ota_enabled: expect.objectContaining({
             platform: "binary_sensor",
             state_topic: "homie/5/kitchen/$implementation/ota/enabled",
           }),
@@ -624,7 +624,7 @@ describe("HomieHaDiscoveryBridge", () => {
     expect(result.messages[0]?.payload).toEqual(
       expect.objectContaining({
         components: expect.not.objectContaining({
-          homie_homie_5_kitchen_implementation_ota_enabled: expect.anything(),
+          homie_homie_5_kitchen_ota_enabled: expect.anything(),
         }),
       }),
     );
@@ -664,6 +664,13 @@ describe("HomieHaDiscoveryBridge", () => {
         retain: true,
       }).messages,
     ).toEqual([]);
+    expect(
+      bridge.ingest({
+        topic: "homie/5/kitchen/$stats",
+        payload: "signal,uptime",
+        retain: true,
+      }).messages,
+    ).toEqual([]);
   });
 
   it("removes observed v5 attribute diagnostics when retained attributes are deleted", () => {
@@ -693,14 +700,14 @@ describe("HomieHaDiscoveryBridge", () => {
     expect(result.messages[0]?.payload).toEqual(
       expect.objectContaining({
         components: expect.objectContaining({
-          homie_homie_5_kitchen_stats_signal: { platform: "sensor" },
+          homie_homie_5_kitchen_signal_strength: { platform: "sensor" },
         }),
       }),
     );
     expect(result.messages[1]?.payload).toEqual(
       expect.objectContaining({
         components: expect.not.objectContaining({
-          homie_homie_5_kitchen_stats_signal: expect.anything(),
+          homie_homie_5_kitchen_signal_strength: expect.anything(),
         }),
       }),
     );

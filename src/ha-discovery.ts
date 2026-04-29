@@ -171,6 +171,7 @@ const createDeviceTemplateContext = (
   return {
     baseTopic: device.baseTopic,
     deviceId: device.deviceId,
+    deviceIdUpper: device.deviceId.toUpperCase(),
     majorVersion: device.majorVersion ?? parsedMajorVersion,
     root,
     rootSlug: toObjectIdSegment(root),
@@ -188,7 +189,9 @@ const createPropertyTemplateContext = (
 ): TemplateContext => ({
   ...createDeviceTemplateContext(device),
   nodeId: property.nodeId,
+  nodeIdUpper: property.nodeId.toUpperCase(),
   propertyId: property.propertyId,
+  propertyIdUpper: property.propertyId.toUpperCase(),
   path: `${property.nodeId}/${property.propertyId}`,
   nodeName: property.nodeName,
   nodeType: property.nodeType,

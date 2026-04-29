@@ -130,11 +130,13 @@ const inferAttributeDatatype = (payload: string): HomieDatatype => {
 // These v5 core topics drive lifecycle, discovery, logging or alert behavior.
 // Publishing them as generic diagnostics would create noisy or misleading HA entities.
 const V5_OPERATIONAL_DEVICE_ATTRIBUTES = new Set(["$alert", "$description", "$log", "$state"]);
+const V5_COLLECTION_DEVICE_ATTRIBUTES = new Set(["$stats"]);
 
 const isV5AttributeDiagnosticTopic = (suffix: string[]): boolean =>
   suffix.length > 0 &&
   suffix[0].startsWith("$") &&
   !V5_OPERATIONAL_DEVICE_ATTRIBUTES.has(suffix[0]) &&
+  !(suffix.length === 1 && V5_COLLECTION_DEVICE_ATTRIBUTES.has(suffix[0])) &&
   suffix.at(-1) !== "set";
 
 const V5_DEVICE_METADATA_KEYS: Record<
@@ -151,18 +153,27 @@ const KNOWN_DIAGNOSTIC_METADATA: Record<
   Partial<
     Pick<
       NormalizedHomieProperty,
-      "deviceClass" | "icon" | "propertyName" | "stateClass" | "unit" | "valueTemplate"
+      "deviceClass" | "icon" | "objectId" | "propertyName" | "stateClass" | "unit" | "valueTemplate"
     >
   >
 > = {
-  $mac: { propertyName: "MAC Address", icon: "mdi:ethernet" },
-  $localip: { propertyName: "Local IP", icon: "mdi:ip-network" },
-  $homie: { propertyName: "Homie Version", icon: "mdi:tag" },
-  "$fw/version": { propertyName: "Firmware Version", icon: "mdi:cellphone-arrow-down" },
-  "$fw/name": { propertyName: "Firmware Name", icon: "mdi:label" },
-  "$fw/checksum": { propertyName: "Firmware Checksum", icon: "mdi:shield-check-outline" },
+  $mac: { propertyName: "MAC Address", objectId: "mac_address", icon: "mdi:ethernet" },
+  $localip: { propertyName: "Local IP", objectId: "local_ip", icon: "mdi:ip-network" },
+  $homie: { propertyName: "Homie Version", objectId: "homie_version", icon: "mdi:tag" },
+  "$fw/version": {
+    propertyName: "Firmware Version",
+    objectId: "firmware_version",
+    icon: "mdi:cellphone-arrow-down",
+  },
+  "$fw/name": { propertyName: "Firmware Name", objectId: "firmware_name", icon: "mdi:label" },
+  "$fw/checksum": {
+    propertyName: "Firmware Checksum",
+    objectId: "firmware_checksum",
+    icon: "mdi:shield-check-outline",
+  },
   "$stats/uptime": {
     propertyName: "Uptime",
+    objectId: "uptime",
     icon: "mdi:timer-sand",
     deviceClass: "duration",
     unit: "s",
@@ -170,6 +181,7 @@ const KNOWN_DIAGNOSTIC_METADATA: Record<
   },
   "$stats/uptimewifi": {
     propertyName: "WiFi Uptime",
+    objectId: "wifi_uptime",
     icon: "mdi:wifi-clock",
     deviceClass: "duration",
     unit: "s",
@@ -177,6 +189,7 @@ const KNOWN_DIAGNOSTIC_METADATA: Record<
   },
   "$stats/uptimemqtt": {
     propertyName: "MQTT Uptime",
+    objectId: "mqtt_uptime",
     icon: "mdi:network-outline-clock",
     deviceClass: "duration",
     unit: "s",
@@ -184,12 +197,14 @@ const KNOWN_DIAGNOSTIC_METADATA: Record<
   },
   "$stats/signal": {
     propertyName: "Signal Strength",
+    objectId: "signal_strength",
     icon: "mdi:wifi",
     unit: "%",
     stateClass: "measurement",
   },
   "$stats/freeheap": {
     propertyName: "Free Heap",
+    objectId: "free_heap",
     icon: "mdi:memory",
     deviceClass: "data_size",
     unit: "B",
@@ -197,26 +212,31 @@ const KNOWN_DIAGNOSTIC_METADATA: Record<
   },
   "$stats/interval": {
     propertyName: "Stats Interval",
+    objectId: "stats_interval",
     icon: "mdi:timer-sync-outline",
     unit: "s",
   },
   "$stats/mqttinbounddropped": {
     propertyName: "MQTT Inbound Dropped Since Boot",
+    objectId: "mqtt_inbound_dropped",
     icon: "mdi:message-alert-outline",
     stateClass: "total_increasing",
   },
   "$stats/mqttackdropped": {
     propertyName: "MQTT Ack Dropped Since Boot",
+    objectId: "mqtt_ack_dropped",
     icon: "mdi:publish-off",
     stateClass: "total_increasing",
   },
   "$stats/mqttinboundmaxdepth": {
     propertyName: "MQTT Inbound Max Queue Depth",
+    objectId: "mqtt_inbound_max_depth",
     icon: "mdi:counter",
     stateClass: "measurement",
   },
   "$stats/mqttackmaxdepth": {
     propertyName: "MQTT Ack Max Queue Depth",
+    objectId: "mqtt_ack_max_depth",
     icon: "mdi:counter",
     stateClass: "measurement",
   },
@@ -224,14 +244,17 @@ const KNOWN_DIAGNOSTIC_METADATA: Record<
   "$implementation/version": { propertyName: "Implementation Version", icon: "mdi:tag-outline" },
   "$implementation/reset/reason": {
     propertyName: "Reset Reason",
+    objectId: "reset_reason",
     icon: "mdi:restart-alert",
   },
   "$implementation/wifi/last_disconnect_reason": {
     propertyName: "WiFi Last Disconnect Reason",
+    objectId: "wifi_last_disconnect_reason",
     icon: "mdi:wifi-alert",
   },
   "$implementation/mqtt/last_disconnect_reason": {
     propertyName: "MQTT Last Disconnect Reason",
+    objectId: "mqtt_last_disconnect_reason",
     icon: "mdi:lan-disconnect",
   },
   "$implementation/config": {
@@ -239,9 +262,14 @@ const KNOWN_DIAGNOSTIC_METADATA: Record<
     icon: "mdi:code-json",
     valueTemplate: "{{ 'configured' }}",
   },
-  "$implementation/ota/status": { propertyName: "OTA Status", icon: "mdi:update" },
+  "$implementation/ota/status": {
+    propertyName: "OTA Status",
+    objectId: "ota_status",
+    icon: "mdi:update",
+  },
   "$implementation/ota/enabled": {
     propertyName: "OTA Enabled",
+    objectId: "ota_enabled",
     icon: "mdi:cellphone-arrow-down-cog",
   },
 };
@@ -277,11 +305,21 @@ const buildV5DescriptionDiagnostics = (
   };
   const diagnostics: NormalizedHomieProperty[] = [];
 
+  diagnostics.push({
+    ...base,
+    propertyId: "description-homie",
+    objectId: "homie_version",
+    propertyName: "Homie Version",
+    datatype: "string",
+    icon: "mdi:tag",
+    valueTemplate: "{{ value_json.homie }}",
+  });
+
   if (device.version !== undefined) {
     diagnostics.push({
       ...base,
       propertyId: "description-version",
-      objectId: "description_version",
+      objectId: "homie_description_version",
       propertyName: "Homie Description Version",
       datatype: "integer",
       icon: "mdi:file-document-refresh-outline",
@@ -292,7 +330,7 @@ const buildV5DescriptionDiagnostics = (
   diagnostics.push({
     ...base,
     propertyId: "description-extensions",
-    objectId: "description_extensions",
+    objectId: "homie_extensions",
     propertyName: "Homie Extensions",
     datatype: "string",
     icon: "mdi:extension",
