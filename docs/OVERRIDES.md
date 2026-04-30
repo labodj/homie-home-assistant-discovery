@@ -1,148 +1,24 @@
 # Discovery Overrides
 
-Overrides let advanced users customize Home Assistant discovery without changing
-Homie devices or patching code.
+Overrides are the place where you add the meaning that Homie core cannot know.
 
-Overrides are optional. The default mapping is intentionally useful without any
-configuration.
+Most devices should work without overrides. Add them when you want nicer names,
+stable historical Home Assistant IDs, a different platform for one boolean, an
+icon, a unit, or a Home Assistant discovery field that needs human intent.
 
-## Root Shape
+The basic idea is:
 
-```json
-{
-  "deviceDefaults": {
-    "objectId": "homie_{deviceId}",
-    "identifiers": ["homie:{baseTopic}"]
-  },
-  "namedNodeState": {
-    "platform": "light",
-    "objectId": "homie_{deviceId}_{nodeId}"
-  },
-  "devices": {
-    "homie/5/kitchen": {
-      "name": "Kitchen Board",
-      "nodeNames": {
-        "relay": "Kitchen Ceiling",
-        "fan": {
-          "name": "Extractor Fan",
-          "platform": "fan"
-        }
-      }
-    }
-  }
-}
-```
+- use `deviceDefaults` for shared identity;
+- use `namedNodeState` for the common `node/state` pattern;
+- use `nodeNames` for friendly names and simple exceptions;
+- use `rules` when many properties follow a pattern;
+- use exact `properties` overrides when one entity must be controlled fully.
 
-`deviceDefaults` is optional. It applies shared Home Assistant device identity
-fields before exact device overrides. Use it when many devices need the same
-identifier, object id, manufacturer, model or `viaDevice` convention.
+## Start Small
 
-Device keys may be either:
-
-- the full Homie base topic, such as `homie/5/kitchen`;
-- the device id, such as `kitchen`.
-
-Full base topic keys are preferred when multiple Homie roots may contain the
-same device id.
-
-## Mapping Priority
-
-Property mapping is resolved in this order:
-
-1. Built-in datatype mapping.
-2. `defaultCommandableBooleanPlatform` automatic/fallback mapping for settable
-   booleans.
-3. `namedNodeState` shortcut for named settable boolean `state` properties.
-4. Ordered `rules` cascade.
-5. Exact device/node/property overrides.
-
-Rules are applied in array order. Every matching rule is merged into the current
-property override; later matching rules override earlier matching rules. Exact
-property overrides, including object entries in `nodeNames`, always win over
-rules.
-
-This gives both simple defaults and absolute per-property control.
-
-## Templates
-
-String fields in `deviceDefaults`, device overrides and property overrides may
-use templates. Unknown tokens are left unchanged.
-
-| Token               | Meaning                                       |
-| ------------------- | --------------------------------------------- |
-| `{baseTopic}`       | Full Homie device base topic.                 |
-| `{deviceId}`        | Homie device id.                              |
-| `{deviceIdUpper}`   | Homie device id converted to upper case.      |
-| `{majorVersion}`    | Homie major version when known.               |
-| `{root}`            | Homie root before the version/device id.      |
-| `{rootSlug}`        | Object-id-safe root.                          |
-| `{nodeId}`          | Homie node id.                                |
-| `{nodeIdUpper}`     | Homie node id converted to upper case.        |
-| `{propertyId}`      | Homie property id.                            |
-| `{propertyIdUpper}` | Homie property id converted to upper case.    |
-| `{path}`            | `nodeId/propertyId`.                          |
-| `{nodeName}`        | Homie node display name when known.           |
-| `{nodeType}`        | Homie node type when known.                   |
-| `{propertyName}`    | Homie property display name when known.       |
-| `{deviceObjectId}`  | Generated Home Assistant device object id.    |
-| `{platform}`        | Generated Home Assistant MQTT platform.       |
-| `{entityObjectId}`  | Generated Home Assistant entity object id.    |
-| `{objectId}`        | Alias of `{entityObjectId}` for entity rules. |
-
-For example:
-
-```json
-{
-  "deviceDefaults": {
-    "objectId": "lsh_{deviceId}",
-    "identifiers": ["LSH_{deviceId}"],
-    "manufacturer": "Jacopo Labardi",
-    "model": "Labo Smart Home"
-  },
-  "namedNodeState": {
-    "exclusive": true,
-    "platform": "light",
-    "objectId": "lsh_{deviceId}_{nodeId}",
-    "defaultEntityId": "{platform}.{objectId}"
-  },
-  "rules": [
-    {
-      "match": {
-        "nodeId": "diagnostics"
-      },
-      "name": "{deviceIdUpper} {propertyName}"
-    }
-  ],
-  "devices": {
-    "c1": {
-      "nodeNames": {
-        "1": "Esterno ingresso",
-        "2": "Esterno camerina",
-        "3": {
-          "name": "Ventola",
-          "platform": "fan"
-        }
-      }
-    }
-  }
-}
-```
-
-## Named Node State
-
-`namedNodeState` is the easiest way to map devices whose meaningful Home
-Assistant entities are the `state` property of named Homie nodes. It applies to
-settable boolean `state` properties on devices listed in `devices`, but only
-when the node is present in `nodeNames` or `nodes`.
-
-Set `exclusive` to `true` when unnamed settable boolean `state` properties on
-those devices should be suppressed. This is useful for devices that expose
-internal outputs or buttons in Homie but should only publish selected entities
-to Home Assistant.
-
-Use object entries in `nodeNames` for one-off exceptions. The `name` is both the
-node display name and the default entity name; any other supported property
-override field is applied to that node's `state` entity:
+This is the smallest practical override for a common relay board: every listed
+node has a commandable boolean `state` property, most are lights, and one is a
+fan.
 
 ```json
 {
@@ -150,13 +26,12 @@ override field is applied to that node's `state` entity:
     "platform": "light"
   },
   "devices": {
-    "homie/5/kitchen": {
+    "homie/5/kitchen-board": {
       "nodeNames": {
-        "ceiling": "Kitchen Ceiling",
+        "ceiling": "Ceiling light",
         "extractor": {
-          "name": "Extractor Fan",
-          "platform": "fan",
-          "icon": "mdi:fan"
+          "name": "Extractor fan",
+          "platform": "fan"
         }
       }
     }
@@ -164,16 +39,203 @@ override field is applied to that node's `state` entity:
 }
 ```
 
+That example is intentionally short:
+
+- `ceiling/state` becomes a light named `Ceiling light`;
+- `extractor/state` becomes a fan named `Extractor fan`;
+- other unlisted nodes are left to the normal automatic mapper.
+
+## Commented Shape
+
+JSON itself does not allow comments. The block below is `jsonc` for learning;
+remove the comments before using it as a real override file.
+
+```jsonc
+{
+  // Defaults applied to every device before exact device overrides.
+  "deviceDefaults": {
+    // Device object id used in the Home Assistant discovery topic.
+    "objectId": "home_{deviceId}",
+
+    // Stable Home Assistant device identifiers.
+    "identifiers": ["homie:{baseTopic}"],
+
+    // Optional fallback metadata.
+    "manufacturer": "Homie",
+    "model": "MQTT device",
+  },
+
+  // Shortcut for devices where the useful entity is node/state.
+  "namedNodeState": {
+    // The default platform for named commandable boolean state properties.
+    "platform": "light",
+
+    // Entity object id template. This controls unique_id and default entity id.
+    "objectId": "home_{deviceId}_{nodeId}",
+
+    // When true, only configured node/state entities are exposed for those devices.
+    "exclusive": true,
+  },
+
+  // Pattern rules. Later matching rules override earlier matching rules.
+  "rules": [
+    {
+      // Match every commandable boolean property under nodes named "garage-*".
+      "match": {
+        "nodeId": "garage-*",
+        "datatype": "boolean",
+        "settable": true,
+      },
+
+      // Make those matched properties switches unless a later rule or exact
+      // override says otherwise.
+      "platform": "switch",
+    },
+  ],
+
+  // Device-specific names and exceptions.
+  "devices": {
+    // Prefer the full base topic when different Homie roots may reuse an id.
+    "homie/5/kitchen-board": {
+      // Friendly Home Assistant device name.
+      "name": "Kitchen board",
+
+      // Compact node id -> entity name or state override map.
+      "nodeNames": {
+        "ceiling": "Ceiling light",
+        "extractor": {
+          "name": "Extractor fan",
+          "platform": "fan",
+          "icon": "mdi:fan",
+        },
+      },
+
+      // Exact property override for one specific entity.
+      "properties": {
+        "temperature/value": {
+          "name": "Kitchen temperature",
+          "deviceClass": "temperature",
+          "unit": "°C",
+          "suggestedDisplayPrecision": 1,
+        },
+      },
+    },
+  },
+}
+```
+
+## Mapping Priority
+
+When more than one setting could apply, the bridge resolves mapping in this
+order:
+
+1. Built-in datatype mapping.
+2. `defaultCommandableBooleanPlatform` for commandable booleans.
+3. `namedNodeState` for configured `node/state` properties.
+4. Ordered `rules`; every matching rule is merged, later rules win.
+5. Exact device, node and property overrides.
+
+This means broad defaults stay simple, while the most specific setting always
+has the final word.
+
+## Device Keys
+
+Device overrides live under `devices`. A key can be:
+
+- the full Homie base topic, for example `homie/5/kitchen-board`;
+- the device id, for example `kitchen-board`.
+
+Use the full base topic when possible. It avoids ambiguity if two Homie roots
+contain the same device id.
+
+## Templates
+
+String fields in `deviceDefaults`, device overrides and property overrides may
+use templates. Unknown tokens are left unchanged.
+
+| Token               | Meaning                                    |
+| ------------------- | ------------------------------------------ |
+| `{baseTopic}`       | Full Homie device base topic.              |
+| `{deviceId}`        | Homie device id.                           |
+| `{deviceIdUpper}`   | Homie device id converted to upper case.   |
+| `{majorVersion}`    | Homie major version when known.            |
+| `{root}`            | Homie root before the version/device id.   |
+| `{rootSlug}`        | Object-id-safe root.                       |
+| `{nodeId}`          | Homie node id.                             |
+| `{nodeIdUpper}`     | Homie node id converted to upper case.     |
+| `{propertyId}`      | Homie property id.                         |
+| `{propertyIdUpper}` | Homie property id converted to upper case. |
+| `{path}`            | `nodeId/propertyId`.                       |
+| `{nodeName}`        | Homie node display name when known.        |
+| `{nodeType}`        | Homie node type when known.                |
+| `{propertyName}`    | Homie property display name when known.    |
+| `{deviceObjectId}`  | Generated Home Assistant device object id. |
+| `{platform}`        | Generated Home Assistant MQTT platform.    |
+| `{entityObjectId}`  | Generated Home Assistant entity object id. |
+| `{objectId}`        | Alias of `{entityObjectId}` for entities.  |
+
+Example:
+
+```json
+{
+  "deviceDefaults": {
+    "objectId": "home_{deviceId}",
+    "identifiers": ["homie:{baseTopic}"]
+  },
+  "namedNodeState": {
+    "platform": "light",
+    "objectId": "home_{deviceId}_{nodeId}",
+    "defaultEntityId": "{platform}.{objectId}"
+  }
+}
+```
+
+## Named Node State
+
+`namedNodeState` is the friendliest shortcut for devices whose useful Home
+Assistant entities are commandable boolean `state` properties.
+
+It applies only to devices listed under `devices`, and only to nodes listed in
+`nodeNames` or `nodes`.
+
+```json
+{
+  "namedNodeState": {
+    "platform": "light",
+    "objectId": "home_{deviceId}_{nodeId}"
+  },
+  "devices": {
+    "homie/5/living-room": {
+      "nodeNames": {
+        "main": "Main light",
+        "reading": "Reading light",
+        "fan": {
+          "name": "Ceiling fan",
+          "platform": "fan"
+        }
+      }
+    }
+  }
+}
+```
+
+Set `exclusive` to `true` when a configured device should expose only the named
+`state` entities and suppress unnamed commandable boolean `state` properties.
+That is useful for devices that also publish internal relays, buttons or service
+signals that should not appear in Home Assistant.
+
 ## Device Overrides
+
+Device overrides control the Home Assistant device object.
 
 ```json
 {
   "devices": {
-    "homie/5/kitchen": {
-      "name": "Kitchen Board",
-      "objectId": "acme_kitchen",
+    "homie/5/kitchen-board": {
+      "name": "Kitchen board",
+      "objectId": "home_kitchen_board",
       "manufacturer": "Acme",
-      "model": "Bridge",
+      "model": "DIN relay",
       "identifiers": ["kitchen-board-01"],
       "viaDevice": "homie:gateway"
     }
@@ -195,21 +257,27 @@ override field is applied to that node's `state` entity:
 
 ## Node Overrides
 
+Node overrides rename a node and can contain property overrides.
+
 ```json
 {
   "devices": {
-    "homie/5/kitchen": {
+    "homie/5/kitchen-board": {
       "nodes": {
         "relay": {
-          "name": "Ceiling Relay"
+          "name": "Relay",
+          "properties": {
+            "state": {
+              "platform": "light",
+              "name": "Kitchen light"
+            }
+          }
         }
       }
     }
   }
 }
 ```
-
-Node overrides currently support:
 
 | Field        | Type   | Meaning                                       |
 | ------------ | ------ | --------------------------------------------- |
@@ -218,16 +286,18 @@ Node overrides currently support:
 
 ## Property Overrides
 
-Property overrides may be declared under `device.properties`:
+Use a property override when you need exact control over one entity.
+
+You can put it under `device.properties`:
 
 ```json
 {
   "devices": {
-    "homie/5/kitchen": {
+    "homie/5/kitchen-board": {
       "properties": {
         "relay/state": {
           "platform": "light",
-          "name": "Kitchen Ceiling"
+          "name": "Kitchen light"
         }
       }
     }
@@ -235,18 +305,18 @@ Property overrides may be declared under `device.properties`:
 }
 ```
 
-or under a node:
+or under `device.nodes.<nodeId>.properties`:
 
 ```json
 {
   "devices": {
-    "homie/5/kitchen": {
+    "homie/5/kitchen-board": {
       "nodes": {
         "relay": {
           "properties": {
             "state": {
               "platform": "light",
-              "name": "Kitchen Ceiling"
+              "name": "Kitchen light"
             }
           }
         }
@@ -264,7 +334,7 @@ Supported property fields:
 | `platform`                  | string   | One of `sensor`, `binary_sensor`, `switch`, `light`, `fan`, `number`, `select`, `text`. |
 | `name`                      | string   | Entity display name.                                                                    |
 | `objectId`                  | string   | Explicit Home Assistant `unique_id` and default entity-id base.                         |
-| `defaultEntityId`           | string   | Full Home Assistant entity id used on first discovery, such as `light.kitchen_ceiling`. |
+| `defaultEntityId`           | string   | Full Home Assistant entity id used on first discovery, such as `light.kitchen_light`.   |
 | `icon`                      | string   | Home Assistant icon, such as `mdi:ceiling-light`.                                       |
 | `entityCategory`            | string   | `diagnostic` or `config`.                                                               |
 | `deviceClass`               | string   | Home Assistant device class.                                                            |
@@ -290,21 +360,20 @@ Supported property fields:
 
 `platform` is intentionally limited to platforms the mapper can produce safely:
 `sensor`, `binary_sensor`, `switch`, `light`, `fan`, `number`, `select` and
-`text`. More specialized Home Assistant MQTT domains need domain-specific
-configuration fields and are not guessed from Homie datatype metadata.
+`text`.
 
-### Advanced Home Assistant Fields
+## Advanced Home Assistant Fields
 
-Use typed override fields first. They are portable across Node-RED, the CLI and
-the library API, and they are validated with friendly errors.
+Use typed override fields first. They are validated, portable across the CLI,
+Node-RED and the library API, and they preserve deterministic cleanup.
 
-For Home Assistant MQTT discovery fields that are not modeled directly, use the
-`ha` object with native Home Assistant snake_case keys:
+When Home Assistant has a discovery field that is not modeled directly, put it
+inside `ha` using native snake_case keys:
 
 ```json
 {
   "devices": {
-    "homie/5/kitchen": {
+    "homie/5/kitchen-board": {
       "properties": {
         "temperature/value": {
           "expireAfter": 300,
@@ -312,7 +381,7 @@ For Home Assistant MQTT discovery fields that are not modeled directly, use the
           "ha": {
             "availability": [
               {
-                "topic": "homie/5/kitchen/$state",
+                "topic": "homie/5/kitchen-board/$state",
                 "payload_available": "ready",
                 "payload_not_available": "lost"
               }
@@ -326,26 +395,19 @@ For Home Assistant MQTT discovery fields that are not modeled directly, use the
 }
 ```
 
-`ha` is intentionally an advanced escape hatch. The validator rejects fields
-managed by the mapper, such as `platform`, `unique_id`, `default_entity_id`,
-`object_id`, `name`, `state_topic`, `command_topic`, `payload_on`,
-`payload_off`, `device_class`, `state_class`, `unit_of_measurement`,
-`value_template`, `json_attributes_topic`, `icon`, `entity_category`,
-`options`, `min`, `max`, `step`, `mode`, `device` and `origin`. Use the typed
-override fields for those values so discovery cleanup, entity identity and
-platform migration remain deterministic.
+The `ha` object rejects fields managed by the mapper, such as `platform`,
+`unique_id`, `default_entity_id`, `object_id`, `name`, `state_topic`,
+`command_topic`, `payload_on`, `payload_off`, `device_class`, `state_class`,
+`unit_of_measurement`, `value_template`, `json_attributes_topic`, `icon`,
+`entity_category`, `options`, `min`, `max`, `step`, `mode`, `device` and
+`origin`. Use the typed override fields for those values.
 
 ## Mapping Rules
 
-Use `rules` when many properties share a pattern. A rule has a required
-`match` object and any supported property override fields.
+Rules are useful when names, paths or datatypes follow a pattern.
 
 All matcher fields are ANDed. String matchers accept exact strings, arrays of
 strings, `*` and `?` globs.
-
-For Homie v3 array nodes, `nodeId` and `path` match both the expanded entity
-node id (`lights_1/state`) and the base array node id (`lights/state`). This
-lets one rule cover every element of `lights[]`.
 
 Supported matcher fields:
 
@@ -366,7 +428,7 @@ Supported matcher fields:
 | `unit`           | string or string[] | Homie unit.                                                        |
 | `configuredNode` | boolean            | Whether this node has an explicit `nodes` or `nodeNames` override. |
 
-Example with light, fan and generic switch booleans in the same installation:
+Example with a broad default, a pattern and one exact exception:
 
 ```json
 {
@@ -383,21 +445,14 @@ Example with light, fan and generic switch booleans in the same installation:
         "path": "lights/*"
       },
       "platform": "light"
-    },
-    {
-      "match": {
-        "nodeId": "fan",
-        "propertyId": "state"
-      },
-      "platform": "fan"
     }
   ],
   "devices": {
-    "homie/5/kitchen": {
+    "homie/5/garden-board": {
       "properties": {
         "pump/state": {
-          "platform": "light",
-          "name": "Fountain Light"
+          "platform": "switch",
+          "name": "Fountain pump"
         }
       }
     }
@@ -405,9 +460,12 @@ Example with light, fan and generic switch booleans in the same installation:
 }
 ```
 
-In that example, settable booleans default to `switch`, `lights/*` becomes
-`light`, `fan/state` becomes `fan`, and the exact `pump/state` override wins
-for the kitchen device only.
+In that example, commandable booleans default to `switch`, `lights/*` becomes
+`light`, and the exact `pump/state` override wins for one device only.
+
+For Homie v3 array nodes, `nodeId` and `path` match both the expanded entity
+node id (`lights_1/state`) and the base array node id (`lights/state`). This
+lets one rule cover every element of `lights[]`.
 
 ## Legacy Array Nodes
 
@@ -419,21 +477,21 @@ node ids such as `doors_1`. Overrides may target either:
 
 ## Preserving Existing Home Assistant Entities
 
-When replacing an older Homie-to-Home-Assistant discovery bridge, preserve
-Home Assistant history by keeping the old discovery object ids and unique ids:
+When replacing another discovery bridge, preserve Home Assistant history by
+keeping the old discovery object ids and entity ids.
 
 ```json
 {
   "devices": {
-    "c1": {
-      "objectId": "acme_c1",
-      "identifiers": ["acme-c1"],
+    "kitchen-board": {
+      "objectId": "old_kitchen_board",
+      "identifiers": ["old-kitchen-board"],
       "properties": {
-        "1/state": {
+        "ceiling/state": {
           "platform": "light",
-          "name": "Kitchen Ceiling",
-          "objectId": "acme_c1_1",
-          "defaultEntityId": "light.acme_c1_1"
+          "name": "Kitchen light",
+          "objectId": "old_kitchen_light",
+          "defaultEntityId": "light.old_kitchen_light"
         }
       }
     }
@@ -444,53 +502,85 @@ Home Assistant history by keeping the old discovery object ids and unique ids:
 `device.objectId` controls the retained device discovery topic. Property
 `objectId` controls the Home Assistant `unique_id` and default entity-id base
 for that entity. Use `defaultEntityId` when the old bridge used a specific full
-entity id, for example `light.acme_c1_1`. If both match the old bridge, Home
-Assistant can continue using the same entity registry entries after the old
-retained config has been removed.
+entity id, for example `light.old_kitchen_light`.
+
+## Diagnostics and v5 Attributes
+
+Observed Homie v5 `$...` attributes are matched under a synthetic
+`diagnostics` node. For example:
+
+- `$stats/uptime` matches `diagnostics/stats-uptime`;
+- `$implementation/ota/enabled` matches `diagnostics/implementation-ota-enabled`.
+
+Use exact property overrides to rename, disable or refine those diagnostics:
+
+```json
+{
+  "devices": {
+    "homie/5/kitchen-board": {
+      "properties": {
+        "diagnostics/stats-uptime": {
+          "name": "Uptime",
+          "icon": "mdi:timer-outline",
+          "entityCategory": "diagnostic"
+        },
+        "diagnostics/implementation-config": {
+          "enabled": false
+        }
+      }
+    }
+  }
+}
+```
 
 ## Runtime Validation
 
-Overrides are validated at runtime. Invalid JSON, unsupported platforms,
-unknown fields or wrong value types fail early in the CLI or Node-RED
-constructor.
+Overrides are validated at startup. Invalid JSON, unsupported platforms, unknown
+fields or wrong value types fail early in the CLI, library constructor or
+Node-RED runtime.
 
-This is intentional: bad overrides can otherwise generate retained Home
-Assistant discovery payloads that survive restarts.
+That is deliberate. Home Assistant discovery messages are retained on MQTT, so
+it is better to stop on a bad override than to publish broken retained config.
 
 ## Complete Example
 
 ```json
 {
+  "deviceDefaults": {
+    "objectId": "home_{deviceId}",
+    "identifiers": ["homie:{baseTopic}"],
+    "manufacturer": "Homie",
+    "model": "MQTT device"
+  },
+  "namedNodeState": {
+    "platform": "light",
+    "objectId": "home_{deviceId}_{nodeId}",
+    "exclusive": true
+  },
   "devices": {
-    "homie/5/kitchen": {
-      "name": "Kitchen Board",
-      "objectId": "acme_kitchen",
-      "manufacturer": "Acme",
-      "model": "DIN Relay",
-      "identifiers": ["acme-kitchen-board"],
-      "nodes": {
-        "relay": {
-          "name": "Relay",
-          "properties": {
-            "state": {
-              "platform": "light",
-              "name": "Kitchen Ceiling",
-              "objectId": "kitchen_ceiling",
-              "icon": "mdi:ceiling-light",
-              "payloadOn": "ON",
-              "payloadOff": "OFF"
-            }
-          }
+    "homie/5/kitchen-board": {
+      "name": "Kitchen board",
+      "nodeNames": {
+        "ceiling": "Ceiling light",
+        "extractor": {
+          "name": "Extractor fan",
+          "platform": "fan",
+          "icon": "mdi:fan"
         }
       },
       "properties": {
+        "temperature/value": {
+          "name": "Kitchen temperature",
+          "deviceClass": "temperature",
+          "unit": "°C",
+          "suggestedDisplayPrecision": 1
+        },
         "diagnostics/stats-signal": {
           "entityCategory": "diagnostic",
           "unit": "%"
         },
         "diagnostics/stats-mqtt-inbound-dropped": {
-          "name": "MQTT Dropped Messages",
-          "objectId": "acme_kitchen_mqtt_dropped",
+          "name": "MQTT dropped messages",
           "icon": "mdi:counter",
           "unit": "messages",
           "stateClass": "total_increasing",

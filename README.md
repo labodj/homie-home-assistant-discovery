@@ -6,97 +6,41 @@
 [![Node.js](https://img.shields.io/node/v/homie-home-assistant-discovery.svg)](https://www.npmjs.com/package/homie-home-assistant-discovery)
 [![License](https://img.shields.io/github/license/labodj/homie-home-assistant-discovery.svg)](https://github.com/labodj/homie-home-assistant-discovery/blob/main/LICENSE)
 
-Standalone Homie MQTT to Home Assistant MQTT discovery bridge.
+[![works with MQTT Homie](https://homieiot.github.io/img/works-with-homie.svg "works with MQTT Homie")](https://homieiot.github.io/)
 
-Homie devices already publish structured metadata on MQTT. Home Assistant already
-knows how to discover MQTT entities. This package connects the two conventions:
-it watches Homie device metadata, builds stable Home Assistant discovery
-payloads, and publishes retained MQTT configuration messages.
+Turn Homie MQTT devices into Home Assistant MQTT discovery entities.
 
-Use it as a small standalone MQTT daemon, or embed the TypeScript core in another
-tool such as a Node-RED node, gateway, test harness or custom automation service.
+Homie already describes devices, nodes and properties on MQTT. Home Assistant
+already knows how to discover MQTT entities. This package sits between the two:
+it listens to Homie metadata, builds stable Home Assistant discovery payloads
+and publishes them as retained MQTT configuration messages.
 
-## Start Here
+You can run it as a small standalone service, embed it in your own
+JavaScript/TypeScript application, or use the companion Node-RED node if you
+prefer wiring everything visually.
 
-- If you want a ready-to-run bridge, use [Standalone daemon](#standalone-daemon).
-- If you want to integrate the mapper in code, use [Library usage](#library-usage).
-- If Home Assistant needs different entity names, icons or platforms, read
-  [Overrides](#overrides).
-- If you need exact mapping details, read
-  [Home Assistant discovery mapping](https://github.com/labodj/homie-home-assistant-discovery/blob/main/docs/HOME_ASSISTANT_DISCOVERY.md).
-- If you need Homie version details, read
-  [Homie compatibility](https://github.com/labodj/homie-home-assistant-discovery/blob/main/docs/HOMIE_COMPATIBILITY.md).
+## Pick Your Path
 
-## Key Features
-
-- **Homie v3.0.1, v4.0.0 and v5.x support**: handles retained legacy topic
-  metadata and v5 `$description` documents.
-- **Home Assistant MQTT discovery**: emits retained discovery payloads with
-  deterministic IDs and stable cleanup behavior.
-- **Extension-aware without hard-coded ecosystems**: observed v5 `$...`
-  attribute topics can become diagnostic entities through conservative,
-  extension-agnostic inference.
-- **Safe automatic mapping**: maps every supported Homie datatype to a practical
-  Home Assistant MQTT entity without guessing high-level semantics that Homie did
-  not declare.
-- **Granular overrides**: ordered rules and exact device/property overrides can
-  adjust platforms, names, icons, object IDs, payloads, units, diagnostics and
-  raw Home Assistant discovery metadata.
-- **Embeddable core**: the `HomieHaDiscoveryBridge` class accepts MQTT-like
-  messages and returns publish-ready MQTT discovery messages.
-- **Standalone MQTT adapter**: the CLI can connect directly to a broker through
-  MQTT.js.
-- **Strict quality gate**: TypeScript, ESLint, Prettier, Knip, package
-  validation, Jest coverage and production dependency audit.
-
-## Installation
+If you want to try it quickly, run the CLI against your broker:
 
 ```bash
-npm install homie-home-assistant-discovery
+npx homie-home-assistant-discovery --broker mqtt://localhost:1883
 ```
 
-## Standalone Daemon
-
-Run the bridge against a local broker:
-
-```bash
-homie-home-assistant-discovery --broker mqtt://localhost:1883
-```
-
-By default it watches `homie/#` and publishes retained Home Assistant discovery
-messages under `homeassistant/`.
-
-A production-style launch usually looks like this:
+If you want to keep it running as a service, install it and pass the same
+options from your service manager, container or process supervisor:
 
 ```bash
+npm install -g homie-home-assistant-discovery
+
 homie-home-assistant-discovery \
-  --broker mqtt://localhost:1883 \
-  --homie-domain homie \
-  --legacy-root homie \
-  --discovery-prefix homeassistant \
-  --id-prefix homie \
-  --boolean-platform switch \
-  --subscription-qos 1 \
-  --log-level info \
-  --overrides ./discovery-overrides.json
+  --broker mqtt://192.168.1.10:1883 \
+  --username homie \
+  --password homie
 ```
 
-Secure brokers use MQTT.js connection options exposed by the CLI:
-
-```bash
-homie-home-assistant-discovery \
-  --broker mqtts://broker.example.com:8883 \
-  --mqtt-version 5 \
-  --ca ./certs/ca.pem \
-  --cert ./certs/client.pem \
-  --key ./certs/client.key
-```
-
-Use `--no-attribute-diagnostics` if you only want entities declared by Homie
-device metadata and do not want observed v5 `$...` attributes exposed as
-diagnostic entities.
-
-## Library Usage
+If you want the mapper inside your own code, use `HomieHaDiscoveryBridge`.
+It accepts MQTT-like messages and returns MQTT messages ready to publish.
 
 ```ts
 import { HomieHaDiscoveryBridge } from "homie-home-assistant-discovery";
@@ -104,14 +48,14 @@ import { HomieHaDiscoveryBridge } from "homie-home-assistant-discovery";
 const bridge = new HomieHaDiscoveryBridge();
 
 const result = bridge.ingest({
-  topic: "homie/5/kitchen/$description",
+  topic: "homie/5/kitchen-board/$description",
   payload: JSON.stringify({
     homie: "5.0",
     version: 1,
-    name: "Kitchen",
+    name: "Kitchen board",
     nodes: {
-      relay: {
-        name: "Relay",
+      ceiling: {
+        name: "Ceiling light",
         properties: {
           state: { datatype: "boolean", settable: true },
         },
@@ -122,63 +66,131 @@ const result = bridge.ingest({
 });
 
 for (const message of result.messages) {
-  // Publish message.topic with retained message.payload to MQTT.
+  // Publish message.topic and message.payload to MQTT with message.retain=true.
 }
 ```
 
-## What Gets Discovered
+## What It Does Automatically
 
-The automatic mapper uses Homie metadata first and falls back conservatively:
+The default mapping is intentionally useful without configuration:
 
-- settable `boolean` properties become `light` or `fan` when Homie `type` /
-  `name` metadata says so, otherwise `switch`
-- read-only `boolean` properties become `binary_sensor`
-- settable `enum` properties become `select`
-- settable `integer`, `float` and `string` properties become `number` or `text`
-- read-only numeric and text properties become `sensor`
-- Homie v5 lifecycle state can be exposed as a diagnostic sensor
-- observed non-operational Homie v5 attributes can be exposed as diagnostic
-  entities
+- Homie v3.0.1 and v4.0.0 retained topic metadata is collected safely, even when
+  the broker replays topics out of order.
+- Homie v5.x `$description` documents are parsed directly.
+- Stable Home Assistant `unique_id`, `default_entity_id`, availability and MQTT
+  topics are generated.
+- Read-only booleans become `binary_sensor`.
+- Commandable booleans become `switch`, unless Homie names/types clearly look
+  like a light or a fan, or you override them.
+- Numbers, enums, strings, colors, datetimes, durations and JSON properties map
+  to the safest Home Assistant MQTT platform available.
+- Homie lifecycle and observed v5 `$...` attributes can become diagnostic
+  entities.
 
-The bridge does not guess complex Home Assistant domains such as `climate`,
-`cover`, `lock`, `vacuum` or `alarm_control_panel` from generic Homie metadata
-alone. Those domains need semantic intent, so they should be modeled with
-overrides.
+The mapper is conservative by design. It will not invent a `cover`, `climate`,
+`lock`, `alarm_control_panel` or similar domain from a generic Homie datatype,
+because Homie core does not provide enough semantics to do that reliably. When
+you know what a property really means, use overrides.
 
-## Overrides
+## A Small Override Example
 
-Overrides let advanced users keep devices generic while making Home Assistant
-entities precise. Use `deviceDefaults` and templates for shared conventions,
-then keep each device override to the metadata Homie cannot know.
+Overrides are optional. Start without them, then add only the things Home
+Assistant cannot infer from Homie metadata.
 
-```json
+The example below says: all named `state` properties are lights, except the
+extractor fan, and use readable Home Assistant IDs.
+
+```jsonc
 {
+  // Shared Home Assistant identity for every discovered device.
   "deviceDefaults": {
-    "objectId": "acme_{deviceId}",
-    "identifiers": ["ACME_{deviceId}"]
+    // Builds device discovery topics such as homeassistant/device/home_kitchen-board/config.
+    "objectId": "home_{deviceId}",
+
+    // Keeps Home Assistant device identifiers stable across restarts.
+    "identifiers": ["homie:{baseTopic}"],
+
+    // Optional fallback metadata when Homie does not provide a richer model.
+    "manufacturer": "Homie",
+    "model": "MQTT device",
   },
+
+  // Shortcut for the common pattern: node/state is the useful entity.
   "namedNodeState": {
+    // Every named commandable boolean state becomes a light by default.
     "platform": "light",
-    "objectId": "acme_{deviceId}_{nodeId}"
+
+    // Entity IDs become light.home_kitchen-board_ceiling, etc.
+    "objectId": "home_{deviceId}_{nodeId}",
   },
+
+  // Device-specific naming and exceptions.
   "devices": {
-    "homie/5/kitchen": {
-      "name": "Kitchen Board",
+    "homie/5/kitchen-board": {
+      // Friendly Home Assistant device name.
+      "name": "Kitchen board",
+
+      // Only nodes listed here get the namedNodeState shortcut.
       "nodeNames": {
-        "relay": "Ceiling",
-        "fan": {
-          "name": "Extractor Fan",
-          "platform": "fan"
-        }
-      }
-    }
-  }
+        // Simple string: name this state entity "Ceiling light".
+        "ceiling": "Ceiling light",
+
+        // Object form: same shortcut, but with one local exception.
+        "extractor": {
+          "name": "Extractor fan",
+          "platform": "fan",
+          "icon": "mdi:fan",
+        },
+      },
+    },
+  },
 }
 ```
 
-See
-[Discovery overrides](https://github.com/labodj/homie-home-assistant-discovery/blob/main/docs/OVERRIDES.md)
-for the complete schema and examples.
+The real override file must be valid JSON, so remove the comments before putting
+it in `--overrides` or in the Node-RED editor. The full override guide includes
+copyable JSON snippets:
+[Discovery overrides](https://github.com/labodj/homie-home-assistant-discovery/blob/main/docs/OVERRIDES.md).
+
+## CLI Essentials
+
+Default behavior:
+
+```bash
+homie-home-assistant-discovery --broker mqtt://localhost:1883
+```
+
+This subscribes to Homie metadata under `homie/#` and publishes discovery under
+`homeassistant/`.
+
+Common production options:
+
+```bash
+homie-home-assistant-discovery \
+  --broker mqtt://broker.example.local:1883 \
+  --homie-domain homie \
+  --legacy-root homie \
+  --discovery-prefix homeassistant \
+  --id-prefix homie \
+  --boolean-platform auto \
+  --subscription-qos 1 \
+  --overrides ./discovery-overrides.json
+```
+
+Secure brokers are supported through MQTT.js options exposed by the CLI:
+
+```bash
+homie-home-assistant-discovery \
+  --broker mqtts://broker.example.local:8883 \
+  --mqtt-version 5 \
+  --ca ./certs/ca.pem \
+  --cert ./certs/client.pem \
+  --key ./certs/client.key
+```
+
+Use `--no-attribute-diagnostics` when you only want entities declared by Homie
+device metadata and do not want observed v5 `$...` attributes exposed as
+diagnostic entities.
 
 ## Documentation
 
@@ -187,11 +199,12 @@ for the complete schema and examples.
 - [Home Assistant discovery mapping](https://github.com/labodj/homie-home-assistant-discovery/blob/main/docs/HOME_ASSISTANT_DISCOVERY.md)
 - [Homie compatibility](https://github.com/labodj/homie-home-assistant-discovery/blob/main/docs/HOMIE_COMPATIBILITY.md)
 
-## Related Package
+## Node-RED
 
-Prefer a visual Node-RED flow? Use
-[`node-red-contrib-homie-home-assistant-discovery`](https://github.com/labodj/node-red-contrib-homie-home-assistant-discovery),
-which wraps this core package with a Node-RED editor UI and MQTT node wiring.
+Prefer a visual flow? Use
+[`node-red-contrib-homie-home-assistant-discovery`](https://github.com/labodj/node-red-contrib-homie-home-assistant-discovery).
+It wraps this package with a Node-RED editor UI, status handling, diagnostics
+and normal MQTT node wiring.
 
 ## Local Quality Gate
 
@@ -202,7 +215,7 @@ npm run check
 
 `npm run check` typechecks, lints, formats, builds, validates packaged
 documentation links, installs the local tarball in a temporary consumer project
-and runs the Jest suite.
+and runs the Jest suite with coverage.
 
 ## License
 

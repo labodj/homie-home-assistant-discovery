@@ -1,9 +1,12 @@
 # Homie Compatibility
 
-This project is a Homie controller: it consumes Homie MQTT metadata and produces
-Home Assistant MQTT discovery payloads. It must be strict enough to avoid bad
-discovery data, while tolerant enough to survive real retained MQTT brokers and
-future Homie revisions.
+This project behaves like a Homie controller for discovery purposes: it reads
+Homie MQTT metadata and turns it into Home Assistant MQTT discovery payloads.
+
+The important balance is strictness without fragility. Bad metadata should not
+create bad retained Home Assistant discovery, but a real broker may replay
+retained topics in any order, hold stale metadata or contain devices from more
+than one Homie generation. The bridge is built for that reality.
 
 ## Supported Standards
 
@@ -15,23 +18,22 @@ future Homie revisions.
 | Future 5.x minor | Future-proof tolerant support    | Accept compatible 5.x descriptions |
 | Future major     | Explicit implementation required | Add a version-specific parser      |
 
-## Compatibility Claim
+## Compatibility Promise
 
-The package is a Home Assistant discovery bridge, not a full Homie controller.
-It consumes the parts of the Homie convention needed to describe devices,
-entities, availability and command topics. It does not validate live property
-payload values and it does not implement application behavior for broadcasts,
-alerts or extension-defined semantics.
+The package is a Home Assistant discovery bridge, not a full device automation
+controller. It consumes the parts of Homie that describe devices, entities,
+availability and command topics. It does not validate live property payload
+values, and it does not implement application behavior for broadcasts, alerts or
+extension-defined workflows.
 
 The intended guarantee is:
 
-- conforming Homie v3.0.1, v4.0.0 and v5.x discovery metadata is mapped to
-  deterministic Home Assistant MQTT discovery where the semantics can be
-  inferred safely;
-- non-conforming or incomplete metadata is ignored, warned about or cleaned up
-  instead of producing broken retained discovery;
-- specialized Home Assistant domains that cannot be inferred from generic Homie
-  metadata require explicit overrides.
+- conforming Homie v3.0.1, v4.0.0 and v5.x metadata becomes deterministic Home
+  Assistant MQTT discovery when the semantics are safe to infer;
+- incomplete or invalid metadata is ignored, warned about or cleaned up instead
+  of becoming broken retained discovery;
+- specialized Home Assistant domains require explicit overrides unless Homie
+  metadata carries enough meaning to map them safely.
 
 ## Current Develop Branch Finding
 
@@ -59,6 +61,9 @@ References:
 - Homie Convention project: <https://github.com/homieiot/convention>
 
 ## Spec-to-Implementation Matrix
+
+The table below is intentionally explicit. It is the public checklist for what
+the bridge claims to understand from each Homie generation.
 
 | Homie capability                 | v3.0.1 support                                      | v4.0.0 support                                    | v5.x support                                                  | Test coverage                |
 | -------------------------------- | --------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------- | ---------------------------- |
@@ -111,36 +116,37 @@ Homie v3.0.1 and v4.0.0 expose device topology through retained MQTT topics.
 Real brokers may replay those topics in any order, and controllers may see
 partial state during startup.
 
-The collector must therefore:
+The legacy collector therefore:
 
-- Accept metadata in any retained replay order.
-- Publish discovery only when enough valid metadata is available.
-- Remove stale Home Assistant discovery when retained topology topics are
+- accepts metadata in any retained replay order;
+- publishes discovery only when enough valid metadata is available;
+- removes stale Home Assistant discovery when retained topology topics are
   deleted.
-- Warn on invalid IDs or unsupported datatypes instead of generating broken
-  entities.
-- Preserve deterministic component IDs for stable Home Assistant entity history.
+- warns on invalid IDs or unsupported datatypes instead of generating broken
+  entities;
+- preserves deterministic component IDs for stable Home Assistant entity
+  history.
 
-Legacy support is considered complete only when golden fixtures cover normal,
-out-of-order, partial, invalid and deletion scenarios.
+Legacy support is covered by golden fixtures for normal, out-of-order, partial,
+invalid and deletion scenarios.
 
 ## Homie v5+ Strategy
 
 Homie v5 exposes topology in a retained `$description` JSON document under
 `<domain>/5/<device-id>/$description`.
 
-The parser must:
+The v5 parser:
 
-- Accept any compatible `homie: "5.x"` description.
-- Ignore unknown fields unless they conflict with required structure.
-- Preserve known future-oriented fields where they affect Home Assistant device
+- accepts any compatible `homie: "5.x"` description;
+- ignores unknown fields unless they conflict with required structure;
+- preserves known future-oriented fields where they affect Home Assistant device
   relationships, such as `root` and `parent`.
-- Map Home Assistant `via_device` to the direct Homie parent when `parent` is
+- maps Home Assistant `via_device` to the direct Homie parent when `parent` is
   present, otherwise to `root`.
-- Add conservative diagnostic entities for observed non-operational v5 `$...`
+- adds conservative diagnostic entities for observed non-operational v5 `$...`
   attribute topics without hard-coding extension names.
-- Treat an empty retained `$description` payload as device removal.
-- Treat a valid description with no valid properties as removal if discovery was
+- treats an empty retained `$description` payload as device removal;
+- treats a valid description with no valid properties as removal if discovery was
   previously published.
 
 The parser must not silently reinterpret a future major version as v5 or legacy
@@ -158,7 +164,7 @@ payload concern and must not be confused with retained metadata deletion.
 
 ## Capabilities Checklist
 
-The project must eventually document and test each row in this checklist.
+This checklist is the compact view of what is implemented today.
 
 | Capability                   | v3/v4                                 | v5                                  |
 | ---------------------------- | ------------------------------------- | ----------------------------------- |
