@@ -121,7 +121,7 @@ homie-home-assistant-discovery \
   --password homie
 ```
 
-For TLS, use `mqtts://`. A private CA is usually the clean production setup:
+For TLS, use `mqtts://`. A private CA is often the right production setup:
 
 ```bash
 homie-home-assistant-discovery \
@@ -147,7 +147,7 @@ homie-home-assistant-discovery \
 certificates. It disables broker certificate verification, so do not use it for
 production.
 
-## Entity Mapping in Plain English
+## Entity Mapping Basics
 
 The bridge first reads what Homie says, then chooses the safest Home Assistant
 entity type.
@@ -297,8 +297,8 @@ devices that were previously published.
 
 ## Programmatic MQTT Adapter
 
-Use the MQTT adapter when you want the package to own the MQTT connection from
-code, but do not want to use the CLI.
+Use the MQTT adapter when your application should let this package manage the
+MQTT connection, but the CLI is not the right fit.
 
 ```ts
 import { HomieHaDiscoveryMqttBridge } from "homie-home-assistant-discovery/mqtt";

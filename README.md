@@ -8,7 +8,8 @@
 
 [![works with MQTT Homie](https://homieiot.github.io/img/works-with-homie.svg "works with MQTT Homie")](https://homieiot.github.io/)
 
-Turn Homie MQTT devices into Home Assistant MQTT discovery entities.
+Use this package to turn Homie MQTT devices into Home Assistant MQTT discovery
+entities.
 
 Homie already describes devices, nodes and properties on MQTT. Home Assistant
 already knows how to discover MQTT entities. This package sits between the two:
@@ -72,7 +73,7 @@ for (const message of result.messages) {
 
 ## What It Does Automatically
 
-The default mapping is intentionally useful without configuration:
+The default mapping is designed to be useful without configuration:
 
 - Homie v3.0.1 and v4.0.0 retained topic metadata is collected safely, even when
   the broker replays topics out of order.
@@ -97,8 +98,8 @@ you know what a property really means, use overrides.
 Overrides are optional. Start without them, then add only the things Home
 Assistant cannot infer from Homie metadata.
 
-The example below says: all named `state` properties are lights, except the
-extractor fan, and use readable Home Assistant IDs.
+The example below does three things: named `state` properties become lights, the
+extractor stays a fan, and Home Assistant gets readable IDs.
 
 ```jsonc
 {
@@ -147,9 +148,9 @@ extractor fan, and use readable Home Assistant IDs.
 }
 ```
 
-The real override file must be valid JSON, so remove the comments before putting
-it in `--overrides` or in the Node-RED editor. The full override guide includes
-copyable JSON snippets:
+The override file you load must be valid JSON, so remove the comments before
+putting it in `--overrides` or in the Node-RED editor. The full override guide
+includes copyable JSON snippets:
 [Discovery overrides](https://github.com/labodj/homie-home-assistant-discovery/blob/main/docs/OVERRIDES.md).
 
 ## CLI Essentials
@@ -194,10 +195,10 @@ diagnostic entities.
 
 ## Documentation
 
-- [Usage](https://github.com/labodj/homie-home-assistant-discovery/blob/main/docs/USAGE.md)
-- [Discovery overrides](https://github.com/labodj/homie-home-assistant-discovery/blob/main/docs/OVERRIDES.md)
-- [Home Assistant discovery mapping](https://github.com/labodj/homie-home-assistant-discovery/blob/main/docs/HOME_ASSISTANT_DISCOVERY.md)
-- [Homie compatibility](https://github.com/labodj/homie-home-assistant-discovery/blob/main/docs/HOMIE_COMPATIBILITY.md)
+The full documentation map lives in
+[DOCS.md](https://github.com/labodj/homie-home-assistant-discovery/blob/main/DOCS.md).
+Start there for CLI usage, library embedding, discovery mapping, overrides and
+Homie compatibility.
 
 ## Node-RED
 

@@ -539,8 +539,9 @@ Overrides are validated at startup. Invalid JSON, unsupported platforms, unknown
 fields or wrong value types fail early in the CLI, library constructor or
 Node-RED runtime.
 
-That is deliberate. Home Assistant discovery messages are retained on MQTT, so
-it is better to stop on a bad override than to publish broken retained config.
+This early stop is intentional. Home Assistant discovery messages are retained
+on MQTT, so it is better to stop on a bad override than to publish broken
+retained config.
 
 ## Complete Example
 

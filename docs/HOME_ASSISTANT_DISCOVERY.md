@@ -12,13 +12,14 @@ lets overrides carry the human meaning.
 The mapper has two promises:
 
 - use Homie metadata to generate deterministic Home Assistant MQTT discovery;
-- avoid guessing specialized Home Assistant domains when Homie core does not
+- avoid inventing specialized Home Assistant domains when Homie core does not
   express the required semantics.
 
 For example, a Homie `boolean` with `settable=true` might be a light, a fan, a
 relay, a plug, a lock bit or an internal flag. The bridge can infer common
 lights and fans from names/types, but generic booleans fall back to `switch`.
-That is less flashy than guessing, but it avoids wrong retained discovery.
+That is less automatic than publishing a more specific domain immediately, but
+it avoids wrong retained discovery.
 
 Home Assistant discovery payloads use the device discovery model: one retained
 device config payload contains the Home Assistant device object, origin metadata
@@ -283,8 +284,8 @@ The package automatically emits these Home Assistant MQTT platforms:
 
 [Home Assistant MQTT discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery)
 supports more component domains, but many of them require semantics that Homie
-core does not standardize. The project prefers a correct `switch` with a clean
-override path over a guessed `lock` or `cover` that could be wrong.
+core does not standardize. The project chooses a correct `switch` with a clean
+override path over an inferred `lock` or `cover` that could be wrong.
 
 ## Number Format
 
@@ -450,5 +451,5 @@ and publish directly to the generated Homie `command_topic`.
 
 Homie v5 `$target` is device feedback for command acceptance and in-flight
 transitions. It is not needed to create Home Assistant discovery, so the bridge
-leaves it to the device/runtime path. Future support could expose target state
-as optional metadata if a stable Home Assistant convention appears.
+leaves it to the device/runtime path. If a stable Home Assistant convention
+appears later, target state can be considered as optional metadata.

@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 
-const roots = ["README.md", "docs"];
+const roots = ["README.md", "DOCS.md", "docs"];
 const errors = [];
 
 const collectMarkdownFiles = async (entry) => {
