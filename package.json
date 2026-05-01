@@ -1,6 +1,6 @@
 {
   "name": "homie-home-assistant-discovery",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Standalone Homie MQTT to Home Assistant MQTT discovery bridge core.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
