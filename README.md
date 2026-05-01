@@ -4,6 +4,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/homie-home-assistant-discovery.svg)](https://www.npmjs.com/package/homie-home-assistant-discovery)
 [![CI](https://github.com/labodj/homie-home-assistant-discovery/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/labodj/homie-home-assistant-discovery/actions/workflows/ci.yaml)
 [![Node.js](https://img.shields.io/node/v/homie-home-assistant-discovery.svg)](https://www.npmjs.com/package/homie-home-assistant-discovery)
+[![Latest Release](https://img.shields.io/github/v/release/labodj/homie-home-assistant-discovery?display_name=tag&sort=semver)](https://github.com/labodj/homie-home-assistant-discovery/releases/latest)
 [![License](https://img.shields.io/github/license/labodj/homie-home-assistant-discovery.svg)](https://github.com/labodj/homie-home-assistant-discovery/blob/main/LICENSE)
 
 [![works with MQTT Homie](https://homieiot.github.io/img/works-with-homie.svg "works with MQTT Homie")](https://homieiot.github.io/)
