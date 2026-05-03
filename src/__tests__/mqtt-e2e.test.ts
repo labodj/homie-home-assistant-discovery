@@ -1,7 +1,6 @@
 import { createServer, type Server } from "node:net";
 
 import mqtt from "mqtt";
-import { createBroker } from "aedes";
 import type { MqttClient } from "mqtt";
 
 import { HomieHaDiscoveryMqttBridge } from "../mqtt-adapter";
@@ -47,7 +46,8 @@ const closeServer = async (server: Server): Promise<void> =>
   });
 
 const startTestBroker = async (): Promise<TestBroker> => {
-  const aedes = createBroker();
+  const { Aedes } = await import("aedes");
+  const aedes = await Aedes.createBroker();
   const server = createServer(aedes.handle);
 
   await new Promise<void>((resolve) => {
