@@ -3,11 +3,11 @@
 This project behaves like a Homie controller for discovery purposes: it reads
 Homie MQTT metadata and turns it into Home Assistant MQTT discovery payloads.
 
-The bridge is strict about the discovery it publishes, but tolerant about the
-order in which MQTT metadata arrives. Bad metadata should not create bad
-retained Home Assistant discovery, while a real broker may replay retained
-topics in any order, hold stale metadata or contain devices from more than one
-Homie generation.
+The bridge is strict about the discovery payloads it publishes, but tolerant
+about the order in which MQTT metadata arrives. Invalid metadata should not
+create invalid retained Home Assistant discovery, because a real broker may
+replay retained topics in any order, hold stale metadata or contain devices from
+more than one Homie generation.
 
 ## Supported Standards
 
@@ -27,12 +27,12 @@ availability and command topics. It does not validate live property payload
 values, and it does not implement application behavior for broadcasts, alerts or
 extension-defined workflows.
 
-The intended guarantee is:
+The package is designed so that:
 
 - conforming Homie v3.0.1, v4.0.0 and v5.x metadata becomes deterministic Home
   Assistant MQTT discovery when the semantics are safe to infer;
 - incomplete or invalid metadata is ignored, warned about or cleaned up instead
-  of becoming broken retained discovery;
+  of becoming invalid retained discovery;
 - specialized Home Assistant domains require explicit overrides unless Homie
   metadata carries enough meaning to map them safely.
 
@@ -61,13 +61,13 @@ References:
 
 ## Spec-to-Implementation Matrix
 
-The table below is intentionally explicit. It is the public checklist for what
-the bridge claims to understand from each Homie generation.
+The table below is intentionally explicit. It documents what the bridge
+understands from each Homie generation.
 
 | Homie capability                 | v3.0.1 support                                           | v4.0.0 support                                           | v5.x support                                                   | Test coverage                |
 | -------------------------------- | -------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------- |
 | Device discovery root            | Configurable legacy root, default `homie`                | Configurable legacy root, default `homie`                | Configurable domain, fixed major segment `5`                   | bridge, MQTT, soak           |
-| Device id validation             | Strict Homie ID format                                   | Strict Homie ID format                                   | Strict Homie ID format                                         | unit, fuzz                   |
+| Device ID validation             | Strict Homie ID format                                   | Strict Homie ID format                                   | Strict Homie ID format                                         | unit, fuzz                   |
 | Device name                      | `$name`                                                  | `$name`                                                  | `description.name`                                             | golden, matrix               |
 | Device type/model                | `$fw/name` fallback                                      | `$fw/name` fallback                                      | `description.type`                                             | golden                       |
 | Firmware version                 | `$fw/version` to `sw_version`                            | `$fw/version` to `sw_version`                            | not a core v5 field                                            | golden                       |
@@ -121,7 +121,7 @@ The legacy collector therefore:
 - publishes discovery only when enough valid metadata is available;
 - removes stale Home Assistant discovery when retained topology topics are
   deleted;
-- warns on invalid IDs or unsupported datatypes instead of generating broken
+- warns on invalid IDs or unsupported datatypes instead of generating invalid
   entities;
 - preserves deterministic component IDs for stable Home Assistant entity
   history.

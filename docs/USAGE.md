@@ -13,11 +13,11 @@ You can use it in three ways:
 
 - run the CLI as a standalone bridge;
 - embed the TypeScript/JavaScript core in your own application;
-- use the companion Node-RED node for visual MQTT wiring.
+- use the separate Node-RED package for visual MQTT wiring.
 
 ## Standalone CLI
 
-The smallest useful command is:
+The minimal useful command is:
 
 ```bash
 homie-home-assistant-discovery --broker mqtt://localhost:1883
@@ -29,8 +29,8 @@ publishes retained discovery messages under `homeassistant/`.
 If the configured legacy root does not also cover the v5 domain, the bridge adds
 the v5 subscriptions it needs. When attribute diagnostics are enabled, that v5
 subscription is intentionally broad enough to see extension-style `$...`
-attributes. Disable attribute diagnostics if you want the narrowest possible
-metadata subscriptions.
+attributes. Disable attribute diagnostics if you want the narrowest metadata
+subscriptions.
 
 ```bash
 homie-home-assistant-discovery \
@@ -58,7 +58,7 @@ homie-home-assistant-discovery \
 | `--boolean-platform`         | `auto`                  | Boolean fallback: `auto`, `switch`, `light`, `fan`. |
 | `--subscription-qos`         | `1`                     | MQTT subscription QoS: `0`, `1`, `2`.               |
 | `--mqtt-version`             | `4`                     | MQTT protocol version: `4` or `5`.                  |
-| `--client-id`                | unset                   | MQTT client id.                                     |
+| `--client-id`                | unset                   | MQTT client ID.                                     |
 | `--username`                 | unset                   | MQTT username.                                      |
 | `--password`                 | unset                   | MQTT password.                                      |
 | `--ca`                       | unset                   | TLS CA certificate file. Can be repeated.           |
@@ -121,7 +121,7 @@ homie-home-assistant-discovery \
   --password homie
 ```
 
-For TLS, use `mqtts://`. A private CA is often the right production setup:
+For TLS, use `mqtts://`. A private CA is a common production setup:
 
 ```bash
 homie-home-assistant-discovery \
@@ -149,8 +149,8 @@ production.
 
 ## Entity Mapping Basics
 
-The bridge first reads what Homie says, then chooses the safest Home Assistant
-entity type.
+The bridge first reads what Homie says, then chooses the most conservative Home
+Assistant entity type.
 
 - A read-only boolean is a `binary_sensor`.
 - A commandable boolean is usually a `switch`.
@@ -175,7 +175,7 @@ your actual override file.
 {
   // Shared identity applied before device-specific settings.
   "deviceDefaults": {
-    // Home Assistant device object id and discovery topic base.
+    // Home Assistant device object ID and discovery topic base.
     "objectId": "home_{deviceId}",
 
     // Stable Home Assistant device identifier.
@@ -187,7 +187,7 @@ your actual override file.
     // Default platform for those node/state entities.
     "platform": "light",
 
-    // Stable unique_id/default entity id base for each entity.
+    // Stable unique_id/default entity ID base for each entity.
     "objectId": "home_{deviceId}_{nodeId}",
   },
 
@@ -198,7 +198,7 @@ your actual override file.
       // Name shown for the Home Assistant device.
       "name": "Kitchen board",
 
-      // Compact map from Homie node id to Home Assistant entity name.
+      // Compact map from Homie node ID to Home Assistant entity name.
       "nodeNames": {
         // Simple case: ceiling/state becomes a light named "Ceiling light".
         "ceiling": "Ceiling light",
@@ -280,7 +280,7 @@ for (const message of result.messages) {
 | Field      | Meaning                                                       |
 | ---------- | ------------------------------------------------------------- |
 | `messages` | MQTT discovery messages to publish.                           |
-| `warnings` | Input problems that did not throw.                            |
+| `warnings` | Input problems reported without throwing.                     |
 | `logs`     | Informational events such as discovery generation or cleanup. |
 
 The bridge is stateful. It remembers what it already published so it can emit
@@ -297,7 +297,7 @@ devices that were previously published.
 
 ## Programmatic MQTT Adapter
 
-Use the MQTT adapter when your application should let this package manage the
+Use the MQTT adapter when your application can let this package manage the
 MQTT connection, but the CLI is not the right fit.
 
 ```ts
@@ -324,7 +324,8 @@ messages can still be processed.
 
 ## Subscription Builder
 
-Advanced integrations can use the same subscription builder as the MQTT adapter.
+Programmatic integrations can use the same subscription builder as the MQTT
+adapter.
 
 ```ts
 import { buildHomieMqttSubscriptions } from "homie-home-assistant-discovery/mqtt";

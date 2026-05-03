@@ -1,8 +1,8 @@
 # Documentation
 
 This package is the standalone Homie-to-Home-Assistant discovery bridge. The
-README gives the quickest first run; this page keeps the rest of the
-documentation easy to navigate.
+README gives a short first run; this page keeps the rest of the documentation
+easy to navigate.
 
 ## Start Here
 
@@ -41,9 +41,9 @@ when Node-RED is the place where you already manage MQTT connections. The
 Node-RED package wraps this core with editor fields, runtime status, diagnostics,
 dynamic subscription messages, and normal Node-RED outputs.
 
-Both packages use the same mapping engine and the same override model. A
-well-tested override file can usually move between the CLI, the library API, and
-the Node-RED editor with only formatting changes.
+Both packages use the same mapping engine and the same override model. A tested
+override file can usually move between the CLI, the library API, and the
+Node-RED editor with only formatting changes.
 
 ## Project Scope
 
@@ -57,9 +57,10 @@ command topics.
 
 ## Mapping Philosophy
 
-The mapper is careful by default. It uses Homie metadata when the meaning is
-clear, and it leaves human intent to overrides when Homie core is too generic.
+The mapper is conservative by default. It uses Homie metadata when the meaning
+is clear, and it leaves human intent to overrides when Homie core is too
+generic.
 
 That is why generic commandable booleans become `switch` by default, while
-lights, fans, stable names, device classes, icons, historical IDs, and advanced
-Home Assistant fields are best handled through explicit overrides.
+lights, fans, stable names, device classes, icons, historical IDs, and Home
+Assistant fields beyond conservative inference belong in explicit overrides.

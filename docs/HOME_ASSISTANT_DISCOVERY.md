@@ -4,12 +4,12 @@ This document explains what the bridge publishes to Home Assistant and why.
 
 The short version: every supported Homie property becomes a stable Home
 Assistant MQTT entity when the bridge has enough metadata to describe it safely.
-When Homie metadata is too generic, the bridge chooses the safest fallback and
-lets overrides carry the human meaning.
+When Homie metadata is too generic, the bridge chooses a conservative fallback
+and lets overrides carry the human meaning.
 
 ## The Mapping Contract
 
-The mapper has two promises:
+The mapper follows two rules:
 
 - use Homie metadata to generate deterministic Home Assistant MQTT discovery;
 - avoid inventing specialized Home Assistant domains when Homie core does not
@@ -19,7 +19,7 @@ For example, a Homie `boolean` with `settable=true` might be a light, a fan, a
 relay, a plug, a lock bit or an internal flag. The bridge can infer common
 lights and fans from names/types, but generic booleans fall back to `switch`.
 That is less automatic than publishing a more specific domain immediately, but
-it avoids wrong retained discovery.
+it avoids retained discovery that encodes the wrong meaning.
 
 Home Assistant discovery payloads use the device discovery model: one retained
 device config payload contains the Home Assistant device object, origin metadata
@@ -41,11 +41,11 @@ Automatic mapping handles facts Homie already provides:
 - conservative sensor metadata such as common device classes;
 - lifecycle and observed v5 attribute diagnostics when enabled.
 
-Overrides handle the meaning only you or the device ecosystem can know:
+Overrides handle the meaning only you or the device stack can know:
 
 - whether a generic commandable boolean is a light, fan or switch;
 - friendly entity names, icons and object IDs;
-- Home Assistant device classes and state classes beyond safe inference;
+- Home Assistant device classes and state classes beyond conservative inference;
 - custom payloads, command topics, value templates and options;
 - entities that should be hidden or disabled;
 - existing Home Assistant IDs that must be preserved during migration.
@@ -73,24 +73,24 @@ All discovery messages are retained with QoS `1`.
 
 ## Device Object IDs
 
-By default, the device object id is built from the configured `idPrefix` and the
+By default, the device object ID is built from the configured `idPrefix` and the
 Homie base topic:
 
 ```text
-<idPrefix>_<homie namespace>_<device id>
+<idPrefix>_<homie namespace>_<device ID>
 ```
 
 Examples:
 
-| Homie base topic                 | Object id                              |
+| Homie base topic                 | Object ID                              |
 | -------------------------------- | -------------------------------------- |
 | `homie/5/kitchen-board`          | `homie_homie_5_kitchen_board`          |
 | `building/homie/5/kitchen-board` | `homie_building_homie_5_kitchen_board` |
 | `homie/weather-station`          | `homie_homie_weather_station`          |
 
-Object id segments are normalized to lowercase alphanumeric underscores.
+Object ID segments are normalized to lowercase alphanumeric underscores.
 
-Use a device override when you need a cleaner or historical object id:
+Use a device override when you need a cleaner or historical object ID:
 
 ```json
 {
@@ -148,14 +148,14 @@ Availability comes from:
 
 ## Component IDs
 
-Component ids default to:
+Component IDs default to:
 
 ```text
 <deviceObjectId>_<nodeId>_<propertyId>
 ```
 
-Overrides can replace the entity object id with `objectId`, or the full first
-Home Assistant entity id with `defaultEntityId`.
+Overrides can replace the entity object ID with `objectId`, or the full first
+Home Assistant entity ID with `defaultEntityId`.
 
 ## Platform Mapping
 
@@ -284,8 +284,8 @@ The package automatically emits these Home Assistant MQTT platforms:
 
 [Home Assistant MQTT discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery)
 supports more component domains, but many of them require semantics that Homie
-core does not standardize. The project chooses a correct `switch` with a clean
-override path over an inferred `lock` or `cover` that could be wrong.
+core does not standardize. The project chooses a conservative `switch` with an
+explicit override path over an inferred `lock` or `cover` that could be wrong.
 
 ## Number Format
 
@@ -370,7 +370,7 @@ raw JSON strings to the Homie `/set` topic.
 ## V5 Attribute Diagnostics
 
 When attribute diagnostics are enabled, observed Homie v5 attribute topics are
-exposed as diagnostic entities without hard-coding any ecosystem.
+exposed as diagnostic entities without hard-coding any extension family.
 
 Examples:
 
@@ -405,7 +405,7 @@ the Homie convention version, description version and declared extension list.
 
 Homie extension names do not provide a complete machine-readable schema by
 themselves. Use overrides to set exact units, icons, device classes, state
-classes, names or object ids, or to disable noisy diagnostics.
+classes, names or object IDs, or to disable noisy diagnostics.
 
 ## Legacy Stats
 

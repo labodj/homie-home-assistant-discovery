@@ -9,17 +9,17 @@
 
 [![works with MQTT Homie](https://homieiot.github.io/img/works-with-homie.svg "works with MQTT Homie")](https://homieiot.github.io/)
 
-Use this package to turn Homie MQTT devices into Home Assistant MQTT discovery
-entities.
+Use this package to publish Home Assistant MQTT discovery for Homie MQTT
+devices.
 
 Homie already describes devices, nodes and properties on MQTT. Home Assistant
-already knows how to discover MQTT entities. This package sits between the two:
-it listens to Homie metadata, builds stable Home Assistant discovery payloads
-and publishes them as retained MQTT configuration messages.
+already knows how to discover MQTT entities. This package connects those
+conventions: it listens to Homie metadata, builds stable Home Assistant
+discovery payloads and publishes them as retained MQTT configuration messages.
 
-You can run it as a small standalone service, embed it in your own
-JavaScript/TypeScript application, or use the companion Node-RED node if you
-prefer wiring everything visually.
+You can run it as a standalone service, embed it in your own JavaScript or
+TypeScript application, or use the separate Node-RED package if you prefer
+visual MQTT wiring.
 
 ## Pick Your Path
 
@@ -85,7 +85,7 @@ The default mapping is designed to be useful without configuration:
 - Commandable booleans become `switch`, unless Homie names/types clearly look
   like a light or a fan, or you override them.
 - Numbers, enums, strings, colors, datetimes, durations and JSON properties map
-  to the safest Home Assistant MQTT platform available.
+  to the most conservative supported Home Assistant MQTT platform.
 - Homie lifecycle and observed v5 `$...` attributes can become diagnostic
   entities.
 
@@ -203,7 +203,7 @@ Homie compatibility.
 
 ## Node-RED
 
-Prefer a visual flow? Use
+For a visual Node-RED flow, use
 [`node-red-contrib-homie-home-assistant-discovery`](https://github.com/labodj/node-red-contrib-homie-home-assistant-discovery).
 It wraps this package with a Node-RED editor UI, status handling, diagnostics
 and normal MQTT node wiring.
