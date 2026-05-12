@@ -109,8 +109,8 @@ describe("Homie compatibility matrix", () => {
     expect(getComponent(payload, "homie_homie_5_matrix_readonly_bool")).toEqual(
       expect.objectContaining({
         platform: "binary_sensor",
-        payload_off: "closed",
-        payload_on: "open",
+        payload_off: "false",
+        payload_on: "true",
         force_update: true,
       }),
     );
@@ -190,8 +190,8 @@ describe("Homie compatibility matrix", () => {
       expect.objectContaining({
         platform: "switch",
         command_topic: "homie/5/controls/control/bool/set",
-        payload_off: "off",
-        payload_on: "on",
+        payload_off: "false",
+        payload_on: "true",
       }),
     );
     expect(getComponent(payload, "homie_homie_5_controls_control_mode")).toEqual(

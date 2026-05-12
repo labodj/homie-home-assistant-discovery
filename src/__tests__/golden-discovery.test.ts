@@ -142,8 +142,8 @@ describe("golden Homie discovery fixtures", () => {
           name: "Lights Power",
           state_topic: "homie/5/supercar/lights/power",
           command_topic: "homie/5/supercar/lights/power/set",
-          payload_on: "on",
-          payload_off: "off",
+          payload_on: "true",
+          payload_off: "false",
         }),
         homie_homie_5_supercar_lights_mode: expect.objectContaining({
           platform: "select",
@@ -602,7 +602,7 @@ describe("golden Homie discovery fixtures", () => {
     expect(finalPayload?.components).toHaveProperty("homie_homie_weather_sensor_temperature");
   });
 
-  it("maps Homie v3 array metadata and boolean custom formats", () => {
+  it("maps Homie v3 array metadata and keeps standard boolean payloads", () => {
     const bridge = new HomieHaDiscoveryBridge();
     const messages = publish(bridge, [
       ["homie/garage/$homie", "3.0.1"],
@@ -629,15 +629,15 @@ describe("golden Homie discovery fixtures", () => {
           platform: "binary_sensor",
           name: "Left door Position",
           state_topic: "homie/garage/doors_1/position",
-          payload_on: "open",
-          payload_off: "closed",
+          payload_on: "true",
+          payload_off: "false",
         }),
         homie_homie_garage_doors_2_position: expect.objectContaining({
           platform: "binary_sensor",
           name: "Right door Position",
           state_topic: "homie/garage/doors_2/position",
-          payload_on: "open",
-          payload_off: "closed",
+          payload_on: "true",
+          payload_off: "false",
         }),
       }),
     );

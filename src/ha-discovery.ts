@@ -2,6 +2,7 @@ import type {
   DiscoveryMessage,
   DiscoveryCategory,
   CommandableBooleanPlatform,
+  CommandableBooleanPlatformMode,
   DeviceDiscoveryOverride,
   DiscoveryMappingRule,
   DiscoveryMappingRuleMatcher,
@@ -24,7 +25,7 @@ interface ResolvedDiscoveryOptions {
   origin: HomeAssistantOrigin;
   includeStateSensor: boolean;
   includeAttributeDiagnostics: boolean;
-  defaultCommandableBooleanPlatform: HomieHaDiscoveryOptions["defaultCommandableBooleanPlatform"];
+  defaultCommandableBooleanPlatform: CommandableBooleanPlatformMode;
   overrides?: HomieHaDiscoveryOptions["overrides"];
 }
 
@@ -140,6 +141,18 @@ export interface DiscoveryBuildResult {
 
 type TemplateContext = Record<string, string | number | undefined>;
 
+const normalizeCommandableBooleanPlatform = (
+  value: HomieHaDiscoveryOptions["defaultCommandableBooleanPlatform"],
+): CommandableBooleanPlatformMode => {
+  if (value === undefined) {
+    return "auto";
+  }
+  if (value === "auto" || value === "switch" || value === "light" || value === "fan") {
+    return value;
+  }
+  throw new Error("Default commandable boolean platform must be auto, switch, light or fan.");
+};
+
 export const resolveDiscoveryOptions = (
   options: HomieHaDiscoveryOptions,
 ): ResolvedDiscoveryOptions => ({
@@ -154,7 +167,9 @@ export const resolveDiscoveryOptions = (
   },
   includeStateSensor: options.includeStateSensor ?? true,
   includeAttributeDiagnostics: options.includeAttributeDiagnostics ?? true,
-  defaultCommandableBooleanPlatform: options.defaultCommandableBooleanPlatform ?? "auto",
+  defaultCommandableBooleanPlatform: normalizeCommandableBooleanPlatform(
+    options.defaultCommandableBooleanPlatform,
+  ),
   // Normalize caller-provided overrides once at the API boundary. This keeps the
   // mapper code working with one canonical shape, regardless of whether the
   // user used compact shortcuts or fully expanded exact overrides.
@@ -551,13 +566,11 @@ const splitEnumFormat = (format: string | undefined): string[] => {
 };
 
 const resolveBooleanPayloads = (
-  property: NormalizedHomieProperty,
   override: PropertyDiscoveryOverride | undefined,
 ): { payload_on: string; payload_off: string } => {
-  const booleanFormat = splitEnumFormat(property.format);
   return {
-    payload_on: override?.payloadOn ?? booleanFormat[1] ?? "true",
-    payload_off: override?.payloadOff ?? booleanFormat[0] ?? "false",
+    payload_on: override?.payloadOn ?? "true",
+    payload_off: override?.payloadOff ?? "false",
   };
 };
 
@@ -942,7 +955,7 @@ const buildPropertyComponent = (
   };
 
   if (commandable && (platform === "switch" || platform === "light" || platform === "fan")) {
-    const payloads = resolveBooleanPayloads(property, override);
+    const payloads = resolveBooleanPayloads(override);
     const config: ToggleComponent = {
       ...baseComponent,
       platform,
@@ -1003,7 +1016,7 @@ const buildPropertyComponent = (
     };
   }
 
-  const payloads = resolveBooleanPayloads(property, override);
+  const payloads = resolveBooleanPayloads(override);
   const config: DiscoveryComponent =
     platform === "binary_sensor"
       ? {

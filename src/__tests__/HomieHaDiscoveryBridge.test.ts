@@ -150,6 +150,15 @@ describe("HomieHaDiscoveryBridge", () => {
     );
   });
 
+  it("rejects invalid commandable boolean platform options", () => {
+    expect(
+      () =>
+        new HomieHaDiscoveryBridge({
+          defaultCommandableBooleanPlatform: "sensor" as "auto",
+        }),
+    ).toThrow("Default commandable boolean platform must be auto, switch, light or fan");
+  });
+
   it("can preserve LSH-style Home Assistant device and entity identities", () => {
     const bridge = new HomieHaDiscoveryBridge({
       idPrefix: "lsh",

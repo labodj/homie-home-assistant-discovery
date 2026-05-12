@@ -35,7 +35,7 @@ Automatic mapping handles facts Homie already provides:
 - state topics and command topics;
 - availability from `$state`;
 - datatype-to-platform fallback;
-- numeric, enum and boolean formats;
+- numeric and enum formats;
 - Homie units;
 - retained/non-retained hints that affect Home Assistant updates;
 - conservative sensor metadata such as common device classes;
@@ -307,18 +307,13 @@ Invalid or missing numeric format fields are ignored.
 
 ## Boolean Format
 
-Homie boolean format may define payloads:
+Homie boolean payloads remain the standard strings `"false"` and `"true"`.
+Homie v5 boolean `format` is descriptive UI metadata for those two states, not
+an alternate payload contract, and v3/v4 core metadata does not define boolean
+format payloads.
 
-```text
-off,on
-```
-
-This maps to:
-
-- `payload_off: "off"`
-- `payload_on: "on"`
-
-Without a format, default payloads are `"false"` and `"true"`.
+If a legacy or non-standard device needs different Home Assistant MQTT payloads,
+set `payloadOff` and `payloadOn` explicitly in a property override.
 
 ## Enum Format
 
