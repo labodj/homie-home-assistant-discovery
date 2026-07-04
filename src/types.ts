@@ -1,25 +1,10 @@
 export type HomieMajorVersion = 3 | 4 | 5;
 
 export type HomieDatatype =
-  | "integer"
-  | "float"
-  | "boolean"
-  | "string"
-  | "enum"
-  | "color"
-  | "datetime"
-  | "duration"
-  | "json";
+  "integer" | "float" | "boolean" | "string" | "enum" | "color" | "datetime" | "duration" | "json";
 
 export type HomeAssistantPlatform =
-  | "sensor"
-  | "binary_sensor"
-  | "switch"
-  | "light"
-  | "fan"
-  | "number"
-  | "select"
-  | "text";
+  "sensor" | "binary_sensor" | "switch" | "light" | "fan" | "number" | "select" | "text";
 
 export type CommandableBooleanPlatform = Extract<HomeAssistantPlatform, "switch" | "light" | "fan">;
 export type CommandableBooleanPlatformMode = CommandableBooleanPlatform | "auto";
