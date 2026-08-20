@@ -110,6 +110,7 @@ describe("CLI argument parsing", () => {
   it("parses environment options", () => {
     expect(
       parseCliArgs([], {
+        HOMIE_HA_MQTT_URL: "mqtts://mqtt.example.test:8883",
         HOMIE_HA_ID_PREFIX: "fleet",
         HOMIE_HA_INCLUDE_STATE_SENSOR: "false",
         HOMIE_HA_INCLUDE_ATTRIBUTE_DIAGNOSTICS: "false",
@@ -175,6 +176,29 @@ describe("CLI argument parsing", () => {
     );
     expect(() => parseCliArgs([], { HOMIE_HA_MQTT_REJECT_UNAUTHORIZED: "maybe" })).toThrow(
       /Invalid boolean environment value/,
+    );
+  });
+
+  it("accepts MQTT.js TCP aliases and lets CLI arguments override an invalid broker env", () => {
+    expect(parseCliArgs(["--broker", " tcp://broker.example.test:1883 "], {})).toEqual(
+      expect.objectContaining({ brokerUrl: "tcp://broker.example.test:1883" }),
+    );
+    expect(parseCliArgs(["--broker", "tls://broker.example.test:8883"], {})).toEqual(
+      expect.objectContaining({ brokerUrl: "tls://broker.example.test:8883" }),
+    );
+    expect(
+      parseCliArgs(["--broker", "mqtt://broker.example.test:1883"], {
+        HOMIE_HA_MQTT_URL: "not a URL",
+      }),
+    ).toEqual(expect.objectContaining({ brokerUrl: "mqtt://broker.example.test:1883" }));
+  });
+
+  it("accepts TLS files with the tls:// alias and rejects unsupported broker schemes", () => {
+    expect(() =>
+      parseCliArgs(["--broker", "tls://broker.example.test:8883", "--ca", "./ca.pem"], {}),
+    ).not.toThrow();
+    expect(() => parseCliArgs(["--broker", "http://broker.example.test"], {})).toThrow(
+      /must use a supported protocol/,
     );
   });
 
@@ -305,6 +329,8 @@ describe("CLI argument parsing", () => {
         [
           "--mqtt-version",
           "5",
+          "--broker",
+          "mqtts://mqtt.example.test:8883",
           "--ca",
           caFile,
           "--cert",
@@ -332,5 +358,25 @@ describe("CLI argument parsing", () => {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  });
+
+  it("rejects TLS certificate options for a non-TLS broker URL", () => {
+    expect(() =>
+      parseCliArgs(
+        [
+          "--ca",
+          "/tmp/ca.pem",
+          "--cert",
+          "/tmp/cert.pem",
+          "--key",
+          "/tmp/key.pem",
+          "--broker",
+          "mqtt://localhost",
+        ],
+        {},
+      ),
+    ).toThrow(
+      /TLS certificate configuration is only valid for mqtts:\/\/, tls:\/\/ or wss:\/\/ broker URLs/,
+    );
   });
 });

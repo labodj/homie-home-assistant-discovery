@@ -381,6 +381,8 @@ Core operational attributes are not exposed as diagnostics:
 - `$log` is a non-retained logging stream;
 - `$alert` is user-facing alert behavior;
 - bare `$stats` is only an index for concrete `$stats/*` values.
+- `$implementation/reset`, `$implementation/ota/firmware/<checksum>` and `*/set`
+  are command topics, not device attributes.
 
 The mapper derives conservative payload metadata:
 
@@ -431,9 +433,22 @@ Cleanup messages are retained empty payloads. They are emitted when:
 - a required legacy datatype is deleted or becomes unsupported;
 - `reset()` is called on the bridge.
 
-When only some components disappear, the mapper emits a new device discovery
-payload without those components. This lets Home Assistant remove stale entities
-without deleting the whole device.
+When only some components disappear or change platform, the mapper emits two
+retained device discovery payloads in this order:
+
+1. a transition containing each removed component with only its previous
+   `platform`;
+2. the final current configuration without those removed components.
+
+Home Assistant requires the transition before the final payload to remove the
+old entities while preserving the rest of the device.
+
+Cleanup history is process-local. The bridge can remove components only when it
+observed their previous configuration during the current process lifetime. It
+cannot infer IDs left by an older release after a restart. In particular,
+`$implementation/ota/firmware/<checksum>` command topics are no longer mapped,
+but checksum entities created by older releases need a one-time manual broker or
+Home Assistant cleanup.
 
 ## Non-Mapped Homie Topics
 

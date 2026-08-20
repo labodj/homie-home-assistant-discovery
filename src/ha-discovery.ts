@@ -8,13 +8,14 @@ import type {
   DiscoveryMappingRuleMatcher,
   HomeAssistantOrigin,
   HomeAssistantPlatform,
+  HomieAvailabilityOptions,
   HomieHaDiscoveryOptions,
   NormalizedHomieDevice,
   NormalizedHomieProperty,
   PropertyDiscoveryOverride,
 } from "./types";
 import { validateDiscoveryOverrides } from "./overrides";
-import { toObjectIdSegment } from "./utils";
+import { isRecord, toObjectIdSegment } from "./utils";
 import { PACKAGE_VERSION } from "./version";
 
 interface ResolvedDiscoveryOptions {
@@ -26,6 +27,8 @@ interface ResolvedDiscoveryOptions {
   includeStateSensor: boolean;
   includeAttributeDiagnostics: boolean;
   defaultCommandableBooleanPlatform: CommandableBooleanPlatformMode;
+  autoApply: boolean;
+  availability: Required<HomieAvailabilityOptions>;
   overrides?: HomieHaDiscoveryOptions["overrides"];
 }
 
@@ -110,8 +113,8 @@ interface DeviceDiscoveryPayload {
   origin: HomeAssistantOrigin;
   availability_topic: string;
   availability_template: string;
-  payload_available: "online";
-  payload_not_available: "offline";
+  payload_available: string;
+  payload_not_available: string;
   qos: 1;
   components: Record<string, DiscoveryComponentUpdate>;
 }
@@ -135,6 +138,7 @@ interface ComponentEntry {
 
 export interface DiscoveryBuildResult {
   messages: DiscoveryMessage[];
+  stableMessages: DiscoveryMessage[];
   componentPlatforms: Record<string, HomeAssistantPlatform>;
   signature: string;
 }
@@ -170,6 +174,13 @@ export const resolveDiscoveryOptions = (
   defaultCommandableBooleanPlatform: normalizeCommandableBooleanPlatform(
     options.defaultCommandableBooleanPlatform,
   ),
+  autoApply: options.autoApply ?? true,
+  availability: {
+    topic: options.availability?.topic ?? "{baseTopic}/$state",
+    template: options.availability?.template ?? "{{ 'online' if value == 'ready' else 'offline' }}",
+    payloadAvailable: options.availability?.payloadAvailable ?? "online",
+    payloadNotAvailable: options.availability?.payloadNotAvailable ?? "offline",
+  },
   // Normalize caller-provided overrides once at the API boundary. This keeps the
   // mapper code working with one canonical shape, regardless of whether the
   // user used compact shortcuts or fully expanded exact overrides.
@@ -192,6 +203,11 @@ const createDeviceTemplateContext = (
     rootSlug: toObjectIdSegment(root),
   };
 };
+
+const resolveDeviceAvailabilityTopic = (
+  device: Pick<NormalizedHomieDevice, "baseTopic" | "deviceId">,
+  options: ResolvedDiscoveryOptions,
+): string => renderTemplate(options.availability.topic, createDeviceTemplateContext(device));
 
 const createPropertyTemplateContext = (
   device: NormalizedHomieDevice,
@@ -1036,6 +1052,47 @@ const buildPropertyComponent = (
 const toComponentPlatformMap = (entries: ComponentEntry[]): Record<string, HomeAssistantPlatform> =>
   Object.fromEntries(entries.map((entry) => [entry.id, entry.platform]));
 
+const dedupeComponentEntries = (
+  entries: ComponentEntry[],
+  reservedIds: Iterable<string> = [],
+): ComponentEntry[] => {
+  const usedIds = new Set(reservedIds);
+  return [...entries]
+    .sort(
+      (left, right) =>
+        left.id.localeCompare(right.id) ||
+        left.config.state_topic.localeCompare(right.config.state_topic),
+    )
+    .map((entry) => {
+      if (!usedIds.has(entry.id)) {
+        usedIds.add(entry.id);
+        return entry;
+      }
+
+      let suffix = 2;
+      let candidate = `${entry.id}_${suffix}`;
+      while (usedIds.has(candidate)) {
+        suffix += 1;
+        candidate = `${entry.id}_${suffix}`;
+      }
+
+      const deduped: ComponentEntry = {
+        ...entry,
+        id: candidate,
+        config: {
+          ...entry.config,
+          unique_id: candidate,
+          default_entity_id:
+            entry.config.default_entity_id === `${entry.platform}.${entry.id}`
+              ? `${entry.platform}.${candidate}`
+              : entry.config.default_entity_id,
+        },
+      };
+      usedIds.add(candidate);
+      return deduped;
+    });
+};
+
 const findRemovedComponents = (
   previous: Record<string, HomeAssistantPlatform> | undefined,
   current: Record<string, HomeAssistantPlatform>,
@@ -1063,10 +1120,13 @@ const buildDeviceDiscoveryMessage = (
   const payload: DeviceDiscoveryPayload = {
     device: haDevice,
     origin: options.origin,
-    availability_topic: `${device.baseTopic}/$state`,
-    availability_template: "{{ 'online' if value == 'ready' else 'offline' }}",
-    payload_available: "online",
-    payload_not_available: "offline",
+    availability_topic: resolveDeviceAvailabilityTopic(device, options),
+    availability_template: renderTemplate(
+      options.availability.template,
+      createDeviceTemplateContext(device),
+    ),
+    payload_available: options.availability.payloadAvailable,
+    payload_not_available: options.availability.payloadNotAvailable,
     qos: 1,
     components: Object.fromEntries(entries.map((entry) => [entry.id, entry.config])),
   };
@@ -1112,6 +1172,206 @@ const buildStateSensorMessage = (
 const buildSignature = (messages: DiscoveryMessage[]): string =>
   JSON.stringify(messages.map((message) => ({ topic: message.topic, payload: message.payload })));
 
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === "string" && value.trim().length > 0;
+
+const validateDevice = (value: unknown, errors: string[]): void => {
+  if (!isRecord(value)) {
+    errors.push("Home Assistant discovery payload device must be an object.");
+    return;
+  }
+
+  const identifiers = value.identifiers;
+  const validIdentifiers =
+    isNonEmptyString(identifiers) ||
+    (Array.isArray(identifiers) && identifiers.length > 0 && identifiers.every(isNonEmptyString));
+  if (identifiers !== undefined && !validIdentifiers) {
+    errors.push(
+      "Home Assistant discovery payload device.identifiers must contain non-empty strings.",
+    );
+  }
+
+  const connections = value.connections;
+  const validConnections =
+    Array.isArray(connections) &&
+    connections.length > 0 &&
+    connections.every(
+      (connection) =>
+        Array.isArray(connection) && connection.length === 2 && connection.every(isNonEmptyString),
+    );
+  if (connections !== undefined && !validConnections) {
+    errors.push(
+      "Home Assistant discovery payload device.connections must contain non-empty string pairs.",
+    );
+  }
+
+  if (!validIdentifiers && !validConnections) {
+    errors.push("Home Assistant discovery payload device requires identifiers or connections.");
+  }
+};
+
+const validateOrigin = (value: unknown, errors: string[]): void => {
+  if (!isRecord(value) || !isNonEmptyString(value.name)) {
+    errors.push("Home Assistant discovery payload origin.name must be a non-empty string.");
+  }
+};
+
+const COMMANDABLE_PLATFORMS = new Set<HomeAssistantPlatform>([
+  "switch",
+  "light",
+  "fan",
+  "number",
+  "select",
+  "text",
+]);
+const SUPPORTED_PLATFORMS = new Set<HomeAssistantPlatform>([
+  "sensor",
+  "binary_sensor",
+  ...COMMANDABLE_PLATFORMS,
+]);
+
+const validateComponent = (
+  componentId: string,
+  value: unknown,
+  uniqueIds: Set<string>,
+  errors: string[],
+): void => {
+  if (!isNonEmptyString(componentId) || !isRecord(value)) {
+    errors.push(`Home Assistant discovery component '${componentId}' must be an object.`);
+    return;
+  }
+
+  const platform = value.platform;
+  if (!isNonEmptyString(platform) || !SUPPORTED_PLATFORMS.has(platform as HomeAssistantPlatform)) {
+    errors.push(
+      `Home Assistant discovery component '${componentId}' must use a supported platform.`,
+    );
+    return;
+  }
+
+  if (Object.keys(value).length === 1) {
+    return;
+  }
+
+  if (!isNonEmptyString(value.unique_id)) {
+    errors.push(
+      `Home Assistant discovery component '${componentId}' unique_id must be a non-empty string.`,
+    );
+  } else if (uniqueIds.has(value.unique_id)) {
+    errors.push(
+      `Home Assistant discovery component '${componentId}' duplicates unique_id '${value.unique_id}'.`,
+    );
+  } else {
+    uniqueIds.add(value.unique_id);
+  }
+
+  if (!isNonEmptyString(value.state_topic) || value.state_topic.includes("\0")) {
+    errors.push(
+      `Home Assistant discovery component '${componentId}' state_topic must be a non-empty MQTT topic.`,
+    );
+  }
+
+  if (
+    COMMANDABLE_PLATFORMS.has(platform as HomeAssistantPlatform) &&
+    (!isNonEmptyString(value.command_topic) || /[\0+#]/.test(value.command_topic))
+  ) {
+    errors.push(
+      `Home Assistant discovery component '${componentId}' command_topic must be a publishable MQTT topic.`,
+    );
+  }
+
+  if (
+    platform === "select" &&
+    (!Array.isArray(value.options) ||
+      value.options.length === 0 ||
+      !value.options.every(isNonEmptyString))
+  ) {
+    errors.push(
+      `Home Assistant discovery component '${componentId}' select options must contain non-empty strings.`,
+    );
+  }
+};
+
+export const validateDiscoveryMessage = (message: DiscoveryMessage): string[] => {
+  const errors: string[] = [];
+
+  if (
+    !isNonEmptyString(message.topic) ||
+    /[\0+#]/.test(message.topic) ||
+    !message.topic.endsWith("/config")
+  ) {
+    errors.push(
+      "Home Assistant discovery message topic must be a publishable MQTT topic ending in /config.",
+    );
+  }
+
+  if (typeof message.payload === "string" && message.payload !== "") {
+    errors.push("Home Assistant discovery string payload must be empty for removal.");
+  } else if (typeof message.payload !== "string" && !isRecord(message.payload)) {
+    errors.push("Home Assistant discovery message payload must be a JSON object or empty string.");
+  }
+
+  if (!Number.isInteger(message.qos) || message.qos < 0 || message.qos > 2) {
+    errors.push("Home Assistant discovery message qos must be 0, 1 or 2.");
+  }
+
+  if (typeof message.retain !== "boolean") {
+    errors.push("Home Assistant discovery message retain must be a boolean.");
+  }
+
+  if (message.payload === "" || !isRecord(message.payload)) {
+    return errors;
+  }
+
+  const payload = message.payload;
+  if (payload.availability_topic !== undefined) {
+    if (
+      !isNonEmptyString(payload.availability_topic) ||
+      payload.availability_topic.includes("\0")
+    ) {
+      errors.push(
+        "Home Assistant discovery payload availability_topic must be a non-empty MQTT topic.",
+      );
+    }
+  }
+  if (
+    payload.availability_template !== undefined &&
+    typeof payload.availability_template !== "string"
+  ) {
+    errors.push("Home Assistant discovery payload availability_template must be a string.");
+  }
+
+  if (payload.components !== undefined) {
+    validateDevice(payload.device, errors);
+    validateOrigin(payload.origin, errors);
+    if (!isRecord(payload.components) || Object.keys(payload.components).length === 0) {
+      errors.push("Home Assistant device discovery payload components must be a non-empty object.");
+    } else {
+      const uniqueIds = new Set<string>();
+      for (const [componentId, component] of Object.entries(payload.components)) {
+        validateComponent(componentId, component, uniqueIds, errors);
+      }
+    }
+  } else {
+    if (!isNonEmptyString(payload.unique_id)) {
+      errors.push("Home Assistant entity discovery payload unique_id must be a non-empty string.");
+    }
+    if (!isNonEmptyString(payload.state_topic) || payload.state_topic.includes("\0")) {
+      errors.push(
+        "Home Assistant entity discovery payload state_topic must be a non-empty MQTT topic.",
+      );
+    }
+    if (payload.device !== undefined) {
+      validateDevice(payload.device, errors);
+    }
+    if (payload.origin !== undefined) {
+      validateOrigin(payload.origin, errors);
+    }
+  }
+
+  return errors;
+};
+
 export const buildDiscoveryMessages = (
   device: NormalizedHomieDevice,
   options: ResolvedDiscoveryOptions,
@@ -1119,9 +1379,12 @@ export const buildDiscoveryMessages = (
 ): DiscoveryBuildResult => {
   const deviceObjectId = getDeviceObjectId(device, options);
   const haDevice = buildHomeAssistantDevice(device, deviceObjectId, options);
-  const entries = device.properties
-    .map((property) => buildPropertyComponent(device, deviceObjectId, property, options))
-    .filter((entry): entry is ComponentEntry => entry !== undefined);
+  const entries = dedupeComponentEntries(
+    device.properties
+      .map((property) => buildPropertyComponent(device, deviceObjectId, property, options))
+      .filter((entry): entry is ComponentEntry => entry !== undefined),
+    options.includeStateSensor ? [`${deviceObjectId}_homie_state`] : [],
+  );
   const componentPlatforms = toComponentPlatformMap(entries);
   const removedComponents = findRemovedComponents(lastComponentPlatforms, componentPlatforms);
 
@@ -1146,10 +1409,15 @@ export const buildDiscoveryMessages = (
     messages.push(buildStateSensorMessage(device, deviceObjectId, haDevice, options));
   }
 
+  const stableMessages = Array.from(
+    new Map(messages.map((message) => [message.topic, message])).values(),
+  );
+
   return {
     messages,
+    stableMessages,
     componentPlatforms,
-    signature: buildSignature(messages),
+    signature: buildSignature(stableMessages),
   };
 };
 

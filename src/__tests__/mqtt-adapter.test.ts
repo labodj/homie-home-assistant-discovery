@@ -13,17 +13,15 @@ class FakeMqttClient implements MqttBridgeClient {
   public ended = false;
   public failNextPublish = false;
   public subscribeCalls = 0;
-  private readonly messageListeners: Array<
-    (topic: string, payload: Buffer, packet: { retain?: boolean }) => void
-  > = [];
+  private readonly listeners = new Map<string, Array<(...args: unknown[]) => void>>();
 
   public on(
-    event: "message",
-    listener: (topic: string, payload: Buffer, packet: { retain?: boolean }) => void,
+    event: Parameters<MqttBridgeClient["on"]>[0],
+    listener: (...args: unknown[]) => void,
   ): this {
-    if (event === "message") {
-      this.messageListeners.push(listener);
-    }
+    const listeners = this.listeners.get(event) ?? [];
+    listeners.push(listener);
+    this.listeners.set(event, listeners);
     return this;
   }
 
@@ -52,8 +50,14 @@ class FakeMqttClient implements MqttBridgeClient {
   }
 
   public emitMessage(topic: string, payload: string, packet: { retain?: boolean } = {}): void {
-    for (const listener of this.messageListeners) {
+    for (const listener of this.listeners.get("message") ?? []) {
       listener(topic, Buffer.from(payload), packet);
+    }
+  }
+
+  public emit(event: "connect" | "reconnect"): void {
+    for (const listener of this.listeners.get(event) ?? []) {
+      listener();
     }
   }
 }
@@ -237,6 +241,60 @@ describe("mqtt adapter", () => {
         topic: "homeassistant/sensor/homie_homie_5_living_room_homie_state/config",
       }),
     ]);
+
+    await bridge.stop();
+  });
+
+  it("reseeds stable discovery once after a successful reconnect", async () => {
+    const fakeClient = new FakeMqttClient();
+    const bridge = new HomieHaDiscoveryMqttBridge({
+      brokerUrl: "mqtt://example.invalid",
+      clientFactory: () => Promise.resolve(fakeClient),
+    });
+
+    await bridge.start();
+    fakeClient.emitMessage("homie/5/kitchen/$description", buildDescription(), { retain: true });
+    await bridge.flush();
+    fakeClient.emitMessage(
+      "homie/5/kitchen/$description",
+      JSON.stringify({
+        homie: "5.0",
+        version: 2,
+        name: "Kitchen Controller",
+        nodes: {
+          relay: {
+            name: "Relay",
+            properties: { state: { datatype: "boolean", settable: false } },
+          },
+        },
+      }),
+      { retain: true },
+    );
+    await bridge.flush();
+    fakeClient.published = [];
+
+    fakeClient.emit("reconnect");
+    await bridge.flush();
+    expect(fakeClient.published).toEqual([]);
+
+    fakeClient.emit("connect");
+    await bridge.flush();
+
+    expect(fakeClient.subscribeCalls).toBe(1);
+    expect(fakeClient.published).toHaveLength(2);
+    expect(JSON.parse(String(fakeClient.published[0]?.payload))).toEqual(
+      expect.objectContaining({
+        components: expect.objectContaining({
+          homie_homie_5_kitchen_relay_state: expect.objectContaining({
+            platform: "binary_sensor",
+            unique_id: "homie_homie_5_kitchen_relay_state",
+          }),
+        }),
+      }),
+    );
+    expect(bridge.getMetrics()).toEqual(
+      expect.objectContaining({ reconnects: 1, reseedCount: 1, reseedPublished: 2 }),
+    );
 
     await bridge.stop();
   });

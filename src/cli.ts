@@ -12,6 +12,8 @@ import type { MqttQoS } from "./subscriptions";
 type BooleanPlatform = NonNullable<HomieHaDiscoveryOptions["defaultCommandableBooleanPlatform"]>;
 type LogLevel = "silent" | "error" | "warn" | "info" | "debug";
 type MqttProtocolVersion = 4 | 5;
+const ALLOWED_BROKER_SCHEMES = new Set(["mqtt:", "mqtts:", "tcp:", "tls:", "ws:", "wss:"]);
+const SECURE_BROKER_SCHEMES = new Set(["mqtts:", "tls:", "wss:"]);
 
 export interface CliOptions {
   brokerUrl: string;
@@ -47,7 +49,7 @@ Usage:
   homie-home-assistant-discovery --broker mqtt://localhost:1883 [options]
 
 Options:
-  --broker <url>              MQTT broker URL.
+  --broker <url>              MQTT broker URL (mqtt[s], tcp/tls or ws[s]).
   --homie-domain <topic>      Homie v5 domain prefix. Default: homie
   --legacy-root <topic>       Homie v3/v4 root prefix. Default: homie
   --discovery-prefix <topic>  Home Assistant discovery prefix. Default: homeassistant
@@ -81,6 +83,45 @@ const takeValue = (args: string[], index: number, flag: string): string => {
     throw new Error(`${flag} requires a value.`);
   }
   return value;
+};
+
+const parseBrokerUrl = (value: string | undefined, source: string): string => {
+  if (!value || value.trim().length === 0) {
+    throw new Error(`${source} must be a non-empty URL.`);
+  }
+
+  let url: URL;
+  try {
+    url = new URL(value.trim());
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${source} must be a valid URL: ${message}`, { cause: error });
+  }
+
+  if (!ALLOWED_BROKER_SCHEMES.has(url.protocol)) {
+    throw new Error(
+      `${source} must use a supported protocol: ${Array.from(ALLOWED_BROKER_SCHEMES)
+        .map((entry) => entry.replace(":", ""))
+        .join(", ")}`,
+    );
+  }
+
+  return value.trim();
+};
+
+const ensureSecureBrokerOptions = (options: CliOptions): void => {
+  const shouldUseSecureAuth =
+    options.caPaths.length > 0 || options.certPath !== undefined || options.keyPath !== undefined;
+  if (!shouldUseSecureAuth) {
+    return;
+  }
+
+  const protocol = new URL(options.brokerUrl).protocol;
+  if (!SECURE_BROKER_SCHEMES.has(protocol)) {
+    throw new Error(
+      `TLS certificate configuration is only valid for mqtts://, tls:// or wss:// broker URLs.`,
+    );
+  }
 };
 
 const parseBooleanEnv = (value: string | undefined, defaultValue: boolean): boolean => {
@@ -182,6 +223,7 @@ export const createLogger = (level: LogLevel): MqttBridgeLogger => {
 };
 
 export const parseCliArgs = (args: string[], env: NodeJS.ProcessEnv = process.env): CliOptions => {
+  let brokerSource = "HOMIE_HA_MQTT_URL";
   const options: CliOptions = {
     brokerUrl: env.HOMIE_HA_MQTT_URL ?? "mqtt://localhost:1883",
     homieDomain: env.HOMIE_HA_HOMIE_DOMAIN ?? "homie",
@@ -228,6 +270,7 @@ export const parseCliArgs = (args: string[], env: NodeJS.ProcessEnv = process.en
         break;
       case "--broker":
         options.brokerUrl = takeValue(args, index, arg);
+        brokerSource = arg;
         index += 1;
         break;
       case "--homie-domain":
@@ -340,6 +383,9 @@ export const parseCliArgs = (args: string[], env: NodeJS.ProcessEnv = process.en
   if (options.keyPassphrase && !options.keyPath) {
     throw new Error("--key-passphrase requires --key.");
   }
+
+  options.brokerUrl = parseBrokerUrl(options.brokerUrl, brokerSource);
+  ensureSecureBrokerOptions(options);
 
   return options;
 };

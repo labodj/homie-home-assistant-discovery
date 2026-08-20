@@ -1,6 +1,7 @@
 import {
   buildCleanupMessages,
   buildDiscoveryMessages,
+  validateDiscoveryMessage,
   resolveDiscoveryOptions,
 } from "./ha-discovery";
 import { LegacyHomieCollector } from "./legacy-collector";
@@ -23,6 +24,11 @@ interface DevicePublicationState {
   device: Pick<NormalizedHomieDevice, "baseTopic" | "deviceId">;
   lastComponentPlatforms?: Record<string, HomeAssistantPlatform>;
   lastSignature?: string;
+  lastMessages?: DiscoveryMessage[];
+}
+
+interface PendingPublication {
+  nextState?: DevicePublicationState;
 }
 
 interface V5DeviceState {
@@ -132,11 +138,17 @@ const inferAttributeDatatype = (payload: string): HomieDatatype => {
 const V5_OPERATIONAL_DEVICE_ATTRIBUTES = new Set(["$alert", "$description", "$log", "$state"]);
 const V5_COLLECTION_DEVICE_ATTRIBUTES = new Set(["$stats"]);
 
+const isV5ImplementationCommandTopic = (suffix: string[]): boolean =>
+  suffix[0] === "$implementation" &&
+  ((suffix.length === 2 && suffix[1] === "reset") ||
+    (suffix[1] === "ota" && suffix[2] === "firmware"));
+
 const isV5AttributeDiagnosticTopic = (suffix: string[]): boolean =>
   suffix.length > 0 &&
   suffix[0].startsWith("$") &&
   !V5_OPERATIONAL_DEVICE_ATTRIBUTES.has(suffix[0]) &&
   !(suffix.length === 1 && V5_COLLECTION_DEVICE_ATTRIBUTES.has(suffix[0])) &&
+  !isV5ImplementationCommandTopic(suffix) &&
   suffix.at(-1) !== "set";
 
 const V5_DEVICE_METADATA_KEYS: Record<
@@ -347,6 +359,7 @@ export class HomieHaDiscoveryBridge {
   private readonly enabledVersions: ReadonlySet<HomieMajorVersion>;
   private readonly legacyCollector = new LegacyHomieCollector();
   private readonly publicationState = new Map<string, DevicePublicationState>();
+  private readonly pendingPublications = new Map<string, PendingPublication>();
   private readonly v5Devices = new Map<string, V5DeviceState>();
 
   public constructor(options: HomieHaDiscoveryOptions = {}) {
@@ -354,6 +367,46 @@ export class HomieHaDiscoveryBridge {
     this.homieDomain = options.homieDomain ?? "homie";
     this.legacyRoot = options.legacyRoot ?? "homie";
     this.enabledVersions = new Set(options.enabledVersions ?? [3, 4, 5]);
+  }
+
+  public commit(baseTopic?: string): number {
+    const targets =
+      baseTopic === undefined ? Array.from(this.pendingPublications.keys()) : [baseTopic];
+    let committed = 0;
+
+    for (const topic of targets) {
+      const pending = this.pendingPublications.get(topic);
+      if (!pending) {
+        continue;
+      }
+
+      if (pending.nextState) {
+        this.publicationState.set(topic, pending.nextState);
+      } else {
+        this.publicationState.delete(topic);
+      }
+
+      this.pendingPublications.delete(topic);
+      committed += 1;
+    }
+
+    return committed;
+  }
+
+  public discard(baseTopic?: string): number {
+    const targets =
+      baseTopic === undefined ? Array.from(this.pendingPublications.keys()) : [baseTopic];
+    let discarded = 0;
+    for (const topic of targets) {
+      if (this.pendingPublications.delete(topic)) {
+        discarded += 1;
+      }
+    }
+    return discarded;
+  }
+
+  public reseed(): DiscoveryMessage[] {
+    return Array.from(this.publicationState.values()).flatMap((state) => state.lastMessages ?? []);
   }
 
   /**
@@ -444,6 +497,10 @@ export class HomieHaDiscoveryBridge {
       return { messages, warnings, logs };
     }
 
+    if (parsedTopic.kind === "v5" && isV5ImplementationCommandTopic(parsedTopic.suffix)) {
+      return { messages, warnings, logs };
+    }
+
     if (
       parsedTopic.kind === "v5" &&
       this.enabledVersions.has(5) &&
@@ -491,13 +548,22 @@ export class HomieHaDiscoveryBridge {
     this.legacyCollector.removeDevice(baseTopic);
     this.v5Devices.delete(baseTopic);
     const state = this.publicationState.get(baseTopic);
-    this.publicationState.delete(baseTopic);
+    this.pendingPublications.delete(baseTopic);
+    const messages = state?.lastComponentPlatforms
+      ? buildCleanupMessages({ baseTopic, deviceId }, this.options)
+      : [];
 
     if (!state?.lastComponentPlatforms) {
       return [];
     }
 
-    return buildCleanupMessages({ baseTopic, deviceId }, this.options);
+    if (this.options.autoApply) {
+      this.publicationState.delete(baseTopic);
+    } else {
+      this.pendingPublications.set(baseTopic, { nextState: undefined });
+    }
+
+    return messages;
   }
 
   /** Clear all remembered devices and return retained cleanup messages. */
@@ -508,13 +574,17 @@ export class HomieHaDiscoveryBridge {
     this.legacyCollector.clear();
     this.v5Devices.clear();
     this.publicationState.clear();
+    this.pendingPublications.clear();
     return cleanupMessages;
   }
 
   private getOrCreateV5State(baseTopic: string): V5DeviceState {
     let state = this.v5Devices.get(baseTopic);
     if (!state) {
-      state = { attributes: new Map<string, NormalizedHomieProperty>(), deviceMetadata: {} };
+      state = {
+        attributes: new Map<string, NormalizedHomieProperty>(),
+        deviceMetadata: {},
+      };
       this.v5Devices.set(baseTopic, state);
     }
     return state;
@@ -598,18 +668,46 @@ export class HomieHaDiscoveryBridge {
   private publishDevice(device: NormalizedHomieDevice, logs: string[]): DiscoveryMessage[] {
     const previous = this.publicationState.get(device.baseTopic);
     const built = buildDiscoveryMessages(device, this.options, previous?.lastComponentPlatforms);
-    this.publicationState.set(device.baseTopic, {
-      device: { baseTopic: device.baseTopic, deviceId: device.deviceId },
-      lastComponentPlatforms: built.componentPlatforms,
-      lastSignature: built.signature,
-    });
 
     if (built.signature === previous?.lastSignature) {
+      if (!this.options.autoApply) {
+        this.pendingPublications.delete(device.baseTopic);
+      }
       return [];
     }
 
+    const nextState: DevicePublicationState = {
+      device: { baseTopic: device.baseTopic, deviceId: device.deviceId },
+      lastComponentPlatforms: built.componentPlatforms,
+      lastSignature: built.signature,
+      lastMessages: built.stableMessages,
+    };
+    const validationErrors = built.messages.flatMap((message) =>
+      validateDiscoveryMessage(message).map(
+        (error) =>
+          `Invalid discovery message '${message.topic}' for '${device.baseTopic}': ${error}`,
+      ),
+    );
+    if (validationErrors.length > 0) {
+      logs.push(...validationErrors);
+      return [];
+    }
+
+    this.stagePublication(device.baseTopic, { nextState });
+
     logs.push(`Generated Home Assistant discovery for '${device.deviceId}'.`);
     return built.messages;
+  }
+
+  private stagePublication(baseTopic: string, candidate: PendingPublication): void {
+    if (this.options.autoApply) {
+      this.pendingPublications.delete(baseTopic);
+      if (candidate.nextState) {
+        this.publicationState.set(baseTopic, candidate.nextState);
+      }
+    } else {
+      this.pendingPublications.set(baseTopic, candidate);
+    }
   }
 
   private cleanupDevice(baseTopic: string, deviceId: string, logs: string[]): DiscoveryMessage[] {

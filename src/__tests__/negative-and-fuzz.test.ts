@@ -1,4 +1,5 @@
 import { HomieHaDiscoveryBridge } from "../HomieHaDiscoveryBridge";
+import { validateDiscoveryMessage } from "../ha-discovery";
 import type { DiscoveryMessage } from "../types";
 
 type DeviceDiscoveryPayload = {
@@ -39,6 +40,57 @@ const expectCleanupMessages = (messages: DiscoveryMessage[], deviceObjectId: str
 };
 
 describe("negative Homie discovery scenarios", () => {
+  it("validates generated messages and rejects invalid Home Assistant discovery invariants", () => {
+    const bridge = new HomieHaDiscoveryBridge();
+    const generated = bridge.ingest({
+      topic: "homie/5/valid/$description",
+      payload: JSON.stringify({
+        homie: "5.0",
+        version: 1,
+        nodes: { relay: { properties: { state: { datatype: "boolean", settable: true } } } },
+      }),
+    }).messages;
+
+    expect(generated.flatMap(validateDiscoveryMessage)).toEqual([]);
+    expect(
+      validateDiscoveryMessage({
+        topic: "homeassistant/+/broken",
+        payload: {
+          device: { identifiers: [] },
+          origin: { name: "" },
+          availability_topic: "",
+          components: {
+            first: {
+              platform: "switch",
+              unique_id: "duplicate",
+              state_topic: "",
+              command_topic: "homie/+/set",
+            },
+            second: {
+              platform: "sensor",
+              unique_id: "duplicate",
+              state_topic: "homie/state",
+            },
+          },
+        },
+        qos: 3,
+        retain: "yes",
+      } as unknown as DiscoveryMessage),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/topic must be a publishable MQTT topic ending in \/config/),
+        expect.stringMatching(/qos must be 0, 1 or 2/),
+        expect.stringMatching(/retain must be a boolean/),
+        expect.stringMatching(/availability_topic must be a non-empty MQTT topic/),
+        expect.stringMatching(/device requires identifiers or connections/),
+        expect.stringMatching(/origin\.name must be a non-empty string/),
+        expect.stringMatching(/state_topic must be a non-empty MQTT topic/),
+        expect.stringMatching(/command_topic must be a publishable MQTT topic/),
+        expect.stringMatching(/duplicates unique_id 'duplicate'/),
+      ]),
+    );
+  });
+
   it("ignores malformed Homie v5 descriptions without publishing stale discovery", () => {
     const bridge = new HomieHaDiscoveryBridge();
 

@@ -48,7 +48,7 @@ homie-home-assistant-discovery \
 
 | Option                       | Default                 | Meaning                                             |
 | ---------------------------- | ----------------------- | --------------------------------------------------- |
-| `--broker`                   | `mqtt://localhost:1883` | MQTT broker URL.                                    |
+| `--broker`                   | `mqtt://localhost:1883` | MQTT.js URL: `mqtt[s]`, `tcp/tls` or `ws[s]`.       |
 | `--homie-domain`             | `homie`                 | Homie v5 topic domain.                              |
 | `--legacy-root`              | `homie`                 | Homie v3/v4 topic root.                             |
 | `--discovery-prefix`         | `homeassistant`         | Home Assistant discovery prefix.                    |
@@ -121,7 +121,8 @@ homie-home-assistant-discovery \
   --password homie
 ```
 
-For TLS, use `mqtts://`. A private CA is a common production setup:
+For TLS, use `mqtts://`, `tls://` or `wss://`. A private CA is a common
+production setup:
 
 ```bash
 homie-home-assistant-discovery \
@@ -250,7 +251,14 @@ Use the core class when another application already owns the MQTT connection.
 ```ts
 import { HomieHaDiscoveryBridge } from "homie-home-assistant-discovery";
 
-const bridge = new HomieHaDiscoveryBridge();
+const bridge = new HomieHaDiscoveryBridge({
+  availability: {
+    topic: "{baseTopic}/$state",
+    template: "{{ 'online' if value == 'ready' else 'offline' }}",
+    payloadAvailable: "online",
+    payloadNotAvailable: "offline",
+  },
+});
 
 const result = bridge.ingest({
   topic: "homie/5/kitchen-board/$description",
@@ -284,7 +292,10 @@ for (const message of result.messages) {
 | `logs`     | Informational events such as discovery generation or cleanup. |
 
 The bridge is stateful. It remembers what it already published so it can emit
-cleanup messages when Homie metadata changes or disappears.
+the Home Assistant removal transition before the final updated configuration
+when Homie metadata changes or disappears. This history is kept only in RAM;
+after a process restart, IDs created by an older configuration cannot be inferred
+and require one-time manual cleanup.
 
 ### Reset
 

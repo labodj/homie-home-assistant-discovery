@@ -37,6 +37,13 @@ export interface HomeAssistantOrigin {
   support_url?: string;
 }
 
+export interface HomieAvailabilityOptions {
+  topic?: string;
+  template?: string;
+  payloadAvailable?: string;
+  payloadNotAvailable?: string;
+}
+
 export type DiscoveryCategory = "diagnostic" | "config";
 export type StateClass = "measurement" | "total" | "total_increasing";
 export type StringMatcher = string | string[];
@@ -157,6 +164,12 @@ export interface HomieHaDiscoveryOptions {
   includeStateSensor?: boolean;
   includeAttributeDiagnostics?: boolean;
   defaultCommandableBooleanPlatform?: CommandableBooleanPlatformMode;
+  availability?: HomieAvailabilityOptions;
+  /**
+   * Internal adapter behavior only: when false, discovery state is staged and
+   * must be committed explicitly.
+   */
+  autoApply?: boolean;
   overrides?: DiscoveryOverrideConfig;
 }
 

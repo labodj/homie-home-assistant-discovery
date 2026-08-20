@@ -61,6 +61,67 @@ describe("HomieHaDiscoveryBridge", () => {
     );
   });
 
+  it("deduplicates component keys and Home Assistant entity identities together", () => {
+    const buildComponents = (nodes: Record<string, unknown>) => {
+      const result = new HomieHaDiscoveryBridge().ingest({
+        topic: "homie/5/collision/$description",
+        payload: JSON.stringify({ homie: "5.0", version: 1, nodes }),
+        retain: true,
+      });
+      return (
+        result.messages[0]?.payload as {
+          components: Record<
+            string,
+            { unique_id: string; default_entity_id: string; state_topic: string }
+          >;
+        }
+      ).components;
+    };
+    const nodes = {
+      "a-b": { properties: { c: { datatype: "boolean" } } },
+      a: { properties: { "b-c": { datatype: "boolean" } } },
+    };
+    const components = buildComponents(nodes);
+
+    expect(components).toEqual(
+      expect.objectContaining({
+        homie_homie_5_collision_a_b_c: expect.objectContaining({
+          unique_id: "homie_homie_5_collision_a_b_c",
+          default_entity_id: "binary_sensor.homie_homie_5_collision_a_b_c",
+          state_topic: "homie/5/collision/a-b/c",
+        }),
+        homie_homie_5_collision_a_b_c_2: expect.objectContaining({
+          unique_id: "homie_homie_5_collision_a_b_c_2",
+          default_entity_id: "binary_sensor.homie_homie_5_collision_a_b_c_2",
+          state_topic: "homie/5/collision/a/b-c",
+        }),
+      }),
+    );
+    expect(buildComponents({ a: nodes.a, "a-b": nodes["a-b"] })).toEqual(components);
+  });
+
+  it("reserves the standalone Homie state sensor identity", () => {
+    const result = new HomieHaDiscoveryBridge().ingest({
+      topic: "homie/5/collision/$description",
+      payload: JSON.stringify({
+        homie: "5.0",
+        version: 1,
+        nodes: { homie: { properties: { state: { datatype: "string" } } } },
+      }),
+      retain: true,
+    });
+    const devicePayload = result.messages[0]?.payload as {
+      components: Record<string, { unique_id: string }>;
+    };
+    const statePayload = result.messages[1]?.payload as { unique_id: string };
+
+    expect(devicePayload.components).toHaveProperty("homie_homie_5_collision_homie_state_2");
+    expect(devicePayload.components.homie_homie_5_collision_homie_state_2?.unique_id).toBe(
+      "homie_homie_5_collision_homie_state_2",
+    );
+    expect(statePayload.unique_id).toBe("homie_homie_5_collision_homie_state");
+  });
+
   it("infers common Home Assistant boolean platforms from Homie v5 semantic metadata", () => {
     const bridge = new HomieHaDiscoveryBridge();
     const result = bridge.ingest({
@@ -507,6 +568,55 @@ describe("HomieHaDiscoveryBridge", () => {
         }),
       }),
     );
+  });
+
+  it("does not expose implementation command topics as diagnostics", () => {
+    const bridge = new HomieHaDiscoveryBridge({
+      overrides: {
+        devices: {
+          "homie/5/kitchen": { objectId: "acme_kitchen" },
+        },
+      },
+    });
+    bridge.ingest({
+      topic: "homie/5/kitchen/$description",
+      payload: buildDescription({
+        state: { datatype: "boolean", settable: true },
+      }),
+      retain: true,
+    });
+
+    expect(
+      bridge.ingest({
+        topic: "homie/5/kitchen/$implementation/ota/firmware/75af074a6b613c57bfbe4b20c7196366",
+        payload: "firmware bytes",
+        retain: false,
+      }).messages,
+    ).toEqual([]);
+    expect(
+      bridge.ingest({
+        topic: "homie/5/kitchen/$implementation/reset",
+        payload: "true",
+        retain: false,
+      }).messages,
+    ).toEqual([]);
+
+    const result = bridge.ingest({
+      topic: "homie/5/kitchen/$stats/mqttinbounddropped",
+      payload: "1",
+      retain: true,
+    });
+    const deviceDiscovery = result.messages.find((message) =>
+      message.topic.startsWith("homeassistant/device/"),
+    );
+    const devicePayload = deviceDiscovery?.payload as Record<string, unknown> | undefined;
+    const components = devicePayload?.components as Record<string, unknown>;
+
+    expect(components).toHaveProperty("acme_kitchen_mqtt_inbound_dropped");
+    expect(components).not.toHaveProperty(
+      "acme_kitchen_implementation_ota_firmware_75af074a6b613c57bfbe4b20c7196366",
+    );
+    expect(components).not.toHaveProperty("acme_kitchen_implementation_reset");
   });
 
   it("lets overrides refine observed v5 attribute diagnostics", () => {
